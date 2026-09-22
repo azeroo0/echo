@@ -1,0 +1,24 @@
+{
+  "name": "echo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ECHO - audio-reactive 3D scroll storytelling",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3001",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs http://localhost:4173/",
+    "smoke:reduced": "node scripts/smoke.mjs http://localhost:4173/ --reduced"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

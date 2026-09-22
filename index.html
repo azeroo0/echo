@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ECHO — 소리를 공간으로 번역하는 오디오 반응형 3D 웹</title>
+    <meta
+      name="description"
+      content="ECHO는 Web Audio API로 합성한 소리를 AnalyserNode로 매 프레임 분석해 Three.js 3D 공간에 실시간으로 시각화하는 스크롤 스토리텔링 포트폴리오입니다. 파형, 스펙트럼, 직접 연주까지 세 개의 챕터로 이어집니다."
+    />
+    <meta name="theme-color" content="#050507" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Mona12 웹폰트 (src/styles/main.css 의 @import 가 mona.css 를 불러옴). 미리 연결/선로드해 폰트 스왑 지연을 줄인다 -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="https://cdn.jsdelivr.net/gh/MonadABXY/mona-font/web/Mona12.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="https://cdn.jsdelivr.net/gh/MonadABXY/mona-font/web/Mona12-Bold.woff2" crossorigin />
+    <meta
+      name="keywords"
+      content="ECHO, Web Audio API, Three.js, WebGL, GSAP ScrollTrigger, audio visualizer, creative coding, TypeScript, Vite"
+    />
+
+    <!-- Favicon: 파형 아이콘 (SVG data URI, 별도 파일 불필요) -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23050507'/%3E%3Cpath d='M6 16h3l3-7 4 14 4-10 2 3h4' fill='none' stroke='%235ee6ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ECHO" />
+    <meta property="og:title" content="ECHO — 소리를 공간으로 번역합니다" />
+    <meta
+      property="og:description"
+      content="실제 오디오 신호가 매 프레임 3D 씬을 구동하는 오디오 반응형 스크롤 스토리텔링. Web Audio API × Three.js × GSAP."
+    />
+    <meta property="og:locale" content="ko_KR" />
+    <!-- TODO: 배포 URL로 교체 -->
+    <meta property="og:url" content="https://example.com/" />
+    <!--
+      TODO: og:image 는 아직 없는 placeholder 입니다.
+      배포 전에 1200x630 PNG(예: Synthesis 챕터 캡처)를 public/og-image.png 로 추가하고
+      아래 content 를 절대 URL(https://your-domain/og-image.png)로 교체하세요.
+    -->
+    <meta property="og:image" content="https://example.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ECHO — 오디오 스펙트럼으로 왜곡된 3D 구체와 파티클" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ECHO — 소리를 공간으로 번역합니다" />
+    <meta
+      name="twitter:description"
+      content="실제 오디오 신호가 매 프레임 3D 씬을 구동하는 오디오 반응형 스크롤 스토리텔링."
+    />
+    <meta name="twitter:image" content="https://example.com/og-image.png" />
+  </head>
+  <body class="is-locked">
+    <!-- 인트로 로더 -->
+    <div id="loader" class="loader" role="status" aria-live="polite">
+      <div class="loader__inner">
+        <span class="loader__label">ECHO</span>
+        <span class="loader__count" aria-label="로딩 진행률"><span id="loader-count">0</span>%</span>
+        <div class="loader__bar" aria-hidden="true"><div id="loader-bar" class="loader__bar-fill"></div></div>
+        <p id="loader-error" class="loader__error" hidden></p>
+      </div>
+    </div>
+
+    <!-- 오디오 활성화 게이트 (브라우저 자동재생 정책 대응) -->
+    <div id="gate" class="gate" hidden>
+      <div class="gate__inner" role="dialog" aria-modal="true" aria-labelledby="gate-title" aria-describedby="gate-desc">
+        <p class="gate__eyebrow">Audio-reactive experience</p>
+        <h2 id="gate-title" class="gate__title">이 사이트는 소리를 사용합니다</h2>
+        <p id="gate-desc" class="gate__desc">
+          화면의 모든 움직임은 실시간으로 합성되고 분석되는 실제 오디오 신호에서 나옵니다. 스피커나 이어폰을
+          준비해주세요.
+        </p>
+        <p class="gate__hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+            <rect x="3" y="13" width="4.5" height="7" rx="1.5" />
+            <rect x="16.5" y="13" width="4.5" height="7" rx="1.5" />
+          </svg>
+          헤드폰 착용을 권장합니다
+        </p>
+        <div class="gate__actions">
+          <button id="gate-start" class="btn btn--primary" type="button">Start</button>
+          <button id="gate-silent" class="btn btn--ghost" type="button">소리 없이 입장</button>
+        </div>
+        <p class="gate__note">‘소리 없이 입장’은 무음 모드로 시작합니다. 시각 효과는 정해진 파동 패턴으로 계속 움직입니다.</p>
+      </div>
+      <!-- 프리뷰 플라이스루 캡션: 뒤의 3D 씬이 지금 훑고 있는 챕터 (src/preview.ts 가 갱신) -->
+      <p id="gate-preview" class="gate__preview" aria-hidden="true" hidden>
+        <span class="gate__preview-eyebrow">Preview</span>
+        <span class="gate__preview-index">01</span>
+        <span class="gate__preview-name">Signal</span>
+        <span class="gate__preview-bar"><span class="gate__preview-fill"></span></span>
+      </p>
+    </div>
+
+    <!-- 3D 캔버스 (장식용) -->
+    <canvas id="gl" class="gl" aria-hidden="true"></canvas>
+
+    <header class="header">
+      <a href="#hero" class="header__logo" aria-label="ECHO 처음으로">ECHO</a>
+      <nav class="header__nav" aria-label="챕터 이동">
+        <a href="#signal">Signal</a>
+        <a href="#frequency">Frequency</a>
+        <a href="#synthesis">Synthesis</a>
+      </nav>
+      <div class="header__actions">
+        <!-- XY 패드 열기/닫기 -->
+        <button id="xy-toggle" class="pill xy-toggle" type="button" aria-expanded="false" aria-controls="xy" aria-label="XY 패드 열기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+            <path d="M4 12h16M12 4v16" opacity="0.5" />
+            <circle cx="15" cy="9" r="2" fill="currentColor" stroke="none" />
+          </svg>
+          <span class="mute__label">XY pad</span>
+        </button>
+        <!-- 무음 모드: 청각 접근성 대체 모드 -->
+        <button id="silent-toggle" class="pill silent" type="button" aria-pressed="false" aria-describedby="silent-desc" aria-label="무음 모드 켜기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+            <circle cx="12" cy="12" r="2.6" />
+          </svg>
+          <span class="mute__label">Silent mode</span>
+        </button>
+        <button id="mute-toggle" class="pill mute" type="button" aria-pressed="false" aria-label="소리 끄기">
+          <svg class="mute__icon mute__icon--on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5H4z" />
+            <path d="M15.5 8.8a4.5 4.5 0 0 1 0 6.4" />
+            <path d="M18.3 6a8 8 0 0 1 0 12" />
+          </svg>
+          <svg class="mute__icon mute__icon--off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5H4z" />
+            <path d="M16 9.5l5 5M21 9.5l-5 5" />
+          </svg>
+          <span class="mute__label">Sound on</span>
+        </button>
+      </div>
+    </header>
+    <!-- 무음 모드 안내: 켜져 있을 때만 보이고, 스크린리더에는 항상 설명으로 연결됨 -->
+    <p id="silent-desc" class="silent__note">
+      무음 모드 — 청각 접근성을 위한 대체 모드입니다. 소리를 끄고, 시각 효과는 미리 정의된 잔잔한 파동 패턴으로 계속 움직입니다.
+    </p>
+
+    <!-- XY 패드: X = 필터 컷오프, Y = 피치 벤드 -->
+    <aside id="xy" class="xy" hidden aria-labelledby="xy-title">
+      <div class="xy__head">
+        <span id="xy-title" class="xy__title">XY pad</span>
+        <span class="xy__axis" aria-hidden="true">x cutoff · y pitch</span>
+      </div>
+      <div
+        id="xy-surface"
+        class="xy__surface"
+        tabindex="0"
+        aria-label="XY 패드. 좌우 방향키: 필터 컷오프, 상하 방향키: 피치 1반음(±1옥타브), Home: 피치 초기화, End: 필터 열기, Esc: 닫기"
+        aria-describedby="xy-status"
+      >
+        <span class="xy__line xy__line--v" aria-hidden="true"></span>
+        <span class="xy__line xy__line--h" aria-hidden="true"></span>
+        <span class="xy__dot" aria-hidden="true"></span>
+      </div>
+      <p id="xy-status" class="xy__status" role="status">Cutoff 18.0 kHz · Pitch +0 st</p>
+    </aside>
+
+    <!-- 우측 세로 챕터 진행 레일 -->
+    <nav id="progress" class="progress" aria-label="챕터 진행">
+      <div
+        class="progress__track"
+        role="progressbar"
+        aria-label="챕터 진행률"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <div class="progress__fill"></div>
+      </div>
+      <ol class="progress__ticks">
+        <li class="progress__tick" data-chapter="signal">
+          <a href="#signal"><span class="progress__num" aria-hidden="true">01</span><span class="sr-only">Signal</span></a>
+        </li>
+        <li class="progress__tick" data-chapter="frequency">
+          <a href="#frequency"><span class="progress__num" aria-hidden="true">02</span><span class="sr-only">Frequency</span></a>
+        </li>
+        <li class="progress__tick" data-chapter="synthesis">
+          <a href="#synthesis"><span class="progress__num" aria-hidden="true">03</span><span class="sr-only">Synthesis</span></a>
+        </li>
+        <li class="progress__tick progress__tick--end" data-chapter="outro">
+          <a href="#outro"><span class="progress__num" aria-hidden="true">–</span><span class="sr-only">Outro</span></a>
+        </li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <!-- 히어로 -->
+      <section id="hero" class="hero section">
+        <div class="hero__content">
+          <p class="hero__eyebrow">Oscillator → Analyser → WebGL</p>
+          <h1 class="hero__title">ECHO</h1>
+          <p class="hero__subtitle">
+            소리를 공간으로 번역합니다.<br />
+            지금 재생되는 오디오 신호가 매 프레임 이 3D 씬을 움직입니다.
+          </p>
+        </div>
+        <div class="scroll-hint" aria-hidden="true">
+          <span class="scroll-hint__line"></span>
+          <span class="scroll-hint__text">Scroll</span>
+        </div>
+      </section>
+
+      <!-- 챕터 1: Signal -->
+      <section id="signal" class="chapter section chapter--signal" data-chapter="signal" aria-labelledby="signal-title">
+        <div class="chapter__content">
+          <span class="chapter__index">01 — Time domain</span>
+          <h2 id="signal-title" class="chapter__title">Signal</h2>
+          <p class="chapter__desc">
+            낮은 앰비언트 톤을 AnalyserNode의 시간 도메인 데이터(getByteTimeDomainData)로 읽어, 매 프레임 튜브
+            지오메트리의 정점 높이와 반경에 그대로 씁니다. 파형이 흔들리는 만큼 리본이 일렁입니다.
+          </p>
+          <dl class="chapter__meta">
+            <div><dt>Source</dt><dd>Sine 55Hz drone</dd></div>
+            <div><dt>Samples</dt><dd>2048 → 256</dd></div>
+            <div><dt>Geometry</dt><dd>Dynamic tube</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- 챕터 2: Frequency -->
+      <section id="frequency" class="chapter section chapter--frequency" data-chapter="frequency" aria-labelledby="frequency-title">
+        <div class="chapter__content">
+          <span class="chapter__index">02 — Frequency domain</span>
+          <h2 id="frequency-title" class="chapter__title">Frequency</h2>
+          <p class="chapter__desc">
+            같은 신호를 이번엔 주파수 스펙트럼(getByteFrequencyData)으로 봅니다. 로그 스케일로 나눈 각 대역의
+            세기가 막대의 높이·밝기·색으로 바뀝니다. 저음은 앞쪽 아래, 고음은 뒤쪽 위에 놓여 있습니다.
+          </p>
+          <dl class="chapter__meta">
+            <div><dt>FFT</dt><dd>2048 bins</dd></div>
+            <div><dt>Range</dt><dd>35Hz – 9kHz</dd></div>
+            <div><dt>Mesh</dt><dd>InstancedMesh</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- 챕터 3: Synthesis -->
+      <section id="synthesis" class="chapter section chapter--synthesis" data-chapter="synthesis" aria-labelledby="synthesis-title">
+        <div class="chapter__content">
+          <span class="chapter__index">03 — Play</span>
+          <h2 id="synthesis-title" class="chapter__title">Synthesis</h2>
+          <p class="chapter__desc" id="synthesis-desc">
+            패드를 클릭하거나 키보드 A~L 키를 눌러 직접 연주해보세요. 각 패드는 OscillatorNode를 새로 만들어
+            짧은 엔벨로프로 재생하고, 배경 톤과 합쳐진 스펙트럼이 중앙의 구체를 왜곡하고 파티클을 밀어냅니다.
+          </p>
+        </div>
+        <div class="pads-wrap">
+          <div class="pads-toolbar">
+            <fieldset id="waveform" class="wave">
+              <legend class="wave__legend">Waveform</legend>
+              <div class="wave__options">
+                <label class="wave__option">
+                  <input type="radio" name="waveform" value="sine" />
+                  <span>Sine</span>
+                </label>
+                <label class="wave__option">
+                  <input type="radio" name="waveform" value="square" />
+                  <span>Square</span>
+                </label>
+                <label class="wave__option">
+                  <input type="radio" name="waveform" value="sawtooth" />
+                  <span>Saw</span>
+                </label>
+                <label class="wave__option">
+                  <input type="radio" name="waveform" value="triangle" checked />
+                  <span>Triangle</span>
+                </label>
+              </div>
+            </fieldset>
+            <!-- 코드 모드: 패드 하나 = 근음 + 3도 + 5도 (C 메이저 다이어토닉 3화음) -->
+            <button id="chord-toggle" class="chord" type="button" aria-pressed="false" aria-describedby="chord-desc">
+              <span class="chord__dot" aria-hidden="true"></span>
+              <span class="chord__label">Chord</span>
+            </button>
+            <span id="chord-desc" class="sr-only">코드 모드: 켜면 패드 하나로 근음과 3도, 5도가 함께 울립니다.</span>
+            <button id="capture" class="capture" type="button" aria-describedby="capture-status">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-9z" />
+                <circle cx="12" cy="13" r="3.2" />
+              </svg>
+              <span class="capture__label">이 순간을 저장</span>
+            </button>
+            <span id="capture-status" class="sr-only" role="status" aria-live="polite"></span>
+          </div>
+
+          <!-- 이펙트 센드 (ConvolverNode 리버브 / DelayNode 딜레이) -->
+          <div class="fx" role="group" aria-label="이펙트">
+            <label class="fx__control" for="fx-reverb">
+              <span class="fx__label">Reverb</span>
+              <input id="fx-reverb" class="fx__slider" type="range" min="0" max="100" step="1" value="35" aria-valuetext="35%" />
+              <output class="fx__value" for="fx-reverb" aria-hidden="true">35</output>
+            </label>
+            <label class="fx__control" for="fx-delay">
+              <span class="fx__label">Delay</span>
+              <input id="fx-delay" class="fx__slider" type="range" min="0" max="100" step="1" value="25" aria-valuetext="25%" />
+              <output class="fx__value" for="fx-delay" aria-hidden="true">25</output>
+            </label>
+          </div>
+
+          <!-- 8스텝 시퀀서 -->
+          <div id="sequencer" class="seq" role="group" aria-label="8스텝 시퀀서" aria-describedby="seq-hint">
+            <div class="seq__transport">
+              <button id="seq-play" class="seq__play" type="button" aria-pressed="false" aria-label="시퀀서 재생">
+                <svg class="seq__icon seq__icon--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M8 6.5v11l9-5.5z" />
+                </svg>
+                <svg class="seq__icon seq__icon--stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="7" y="7" width="10" height="10" rx="1.5" />
+                </svg>
+                <span class="seq__play-label">Play</span>
+              </button>
+              <label class="seq__bpm">
+                <span class="fx__label">BPM</span>
+                <input id="seq-bpm" type="number" min="60" max="200" step="1" value="120" inputmode="numeric" aria-label="BPM" />
+              </label>
+              <!-- 멜로디 링크 공유: 시퀀스/BPM/파형/코드 모드를 URL 쿼리로 인코딩 -->
+              <button id="seq-share" class="seq__share" type="button" aria-describedby="seq-status">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <path d="M10 14a4 4 0 0 1 0-5.6l2.4-2.4a4 4 0 0 1 5.6 5.6l-1.2 1.2" />
+                  <path d="M14 10a4 4 0 0 1 0 5.6l-2.4 2.4a4 4 0 0 1-5.6-5.6l1.2-1.2" />
+                </svg>
+                <span class="seq__share-label">링크 복사</span>
+              </button>
+              <span id="seq-status" class="sr-only" role="status" aria-live="polite"></span>
+            </div>
+            <div class="seq__steps" role="group" aria-label="스텝">
+              <button class="step" type="button" data-step="0">·</button>
+              <button class="step" type="button" data-step="1">·</button>
+              <button class="step" type="button" data-step="2">·</button>
+              <button class="step" type="button" data-step="3">·</button>
+              <button class="step" type="button" data-step="4">·</button>
+              <button class="step" type="button" data-step="5">·</button>
+              <button class="step" type="button" data-step="6">·</button>
+              <button class="step" type="button" data-step="7">·</button>
+            </div>
+            <p id="seq-hint" class="seq__hint">
+              스텝을 클릭하면 다음 음, Shift+클릭은 이전 음. 포커스한 스텝에서 ↑↓로 바꾸고 Delete로 비우거나 A~L 키로
+              바로 지정할 수 있습니다.
+            </p>
+          </div>
+
+          <div id="pads" class="pads" role="group" aria-label="연주 패드 (C 메이저 펜타토닉)" aria-describedby="synthesis-desc">
+            <button class="pad" type="button" data-note="C4" data-freq="261.63" data-key="A" aria-label="C4, 키 A">
+              <span class="pad__key" aria-hidden="true">A</span><span class="pad__note">C4</span>
+            </button>
+            <button class="pad" type="button" data-note="D4" data-freq="293.66" data-key="S" aria-label="D4, 키 S">
+              <span class="pad__key" aria-hidden="true">S</span><span class="pad__note">D4</span>
+            </button>
+            <button class="pad" type="button" data-note="E4" data-freq="329.63" data-key="D" aria-label="E4, 키 D">
+              <span class="pad__key" aria-hidden="true">D</span><span class="pad__note">E4</span>
+            </button>
+            <button class="pad" type="button" data-note="G4" data-freq="392.00" data-key="F" aria-label="G4, 키 F">
+              <span class="pad__key" aria-hidden="true">F</span><span class="pad__note">G4</span>
+            </button>
+            <button class="pad" type="button" data-note="A4" data-freq="440.00" data-key="G" aria-label="A4, 키 G">
+              <span class="pad__key" aria-hidden="true">G</span><span class="pad__note">A4</span>
+            </button>
+            <button class="pad" type="button" data-note="C5" data-freq="523.25" data-key="H" aria-label="C5, 키 H">
+              <span class="pad__key" aria-hidden="true">H</span><span class="pad__note">C5</span>
+            </button>
+            <button class="pad" type="button" data-note="D5" data-freq="587.33" data-key="J" aria-label="D5, 키 J">
+              <span class="pad__key" aria-hidden="true">J</span><span class="pad__note">D5</span>
+            </button>
+            <button class="pad" type="button" data-note="E5" data-freq="659.25" data-key="K" aria-label="E5, 키 K">
+              <span class="pad__key" aria-hidden="true">K</span><span class="pad__note">E5</span>
+            </button>
+            <button class="pad" type="button" data-note="G5" data-freq="783.99" data-key="L" aria-label="G5, 키 L">
+              <span class="pad__key" aria-hidden="true">L</span><span class="pad__note">G5</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Synthesis → Outro 컨버전스: 세 모티프의 잔상이 한 점으로 모였다가 흩어지는 스크럽 구간 (3D만, 텍스트 없음) -->
+      <section id="convergence" class="convergence section" aria-hidden="true"></section>
+
+      <!-- 아웃트로 -->
+      <section id="outro" class="outro section" aria-labelledby="outro-title">
+        <div class="outro__content">
+          <p class="outro__eyebrow">Built with</p>
+          <h2 id="outro-title" class="outro__title">소리 하나, 파이프라인 하나.</h2>
+          <ul class="badges" aria-label="기술 스택">
+            <li>Three.js</li>
+            <li>Web Audio API</li>
+            <li>GSAP ScrollTrigger</li>
+            <li>TypeScript</li>
+            <li>Vite</li>
+          </ul>
+          <p class="outro__note">
+            모든 소리는 OscillatorNode로 합성되며 외부 음원 파일은 사용하지 않습니다. 배경 톤과 연주음은 하나의
+            마스터 GainNode를 거쳐 하나의 AnalyserNode로 모이고, 화면의 모든 움직임은 그 노드에서 매 프레임 읽은
+            실제 값입니다.
+          </p>
+          <div class="outro__author">
+            <p class="outro__name">Your Name</p>
+            <div class="outro__links">
+              <a href="https://github.com/your-handle" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href="mailto:you@example.com">you@example.com</a>
+            </div>
+            <p class="outro__copy">© 2026 ECHO. Audio-reactive 3D scroll storytelling.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
