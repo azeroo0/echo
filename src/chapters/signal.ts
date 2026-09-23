@@ -3,18 +3,12 @@ import type { FrameContext, SceneManager } from '../scene';
 import { damp, densityScale, lerp } from '../utils';
 import { BaseChapter } from './base';
 
-const SAMPLES = 256; // waveform points along the ribbon
-const RING = 12; // vertices per tube cross-section
-const LENGTH = 44; // world units along X
+const SAMPLES = 256;
+const RING = 12;
+const LENGTH = 44;
 const AMPLITUDE = 2.4;
 const BASE_RADIUS = 0.32;
 
-/**
- * Chapter 1 — Signal
- * A tube whose centreline is the live time-domain waveform.
- * Every frame the 2048 analyser samples are averaged down to 256 points and written
- * straight into the vertex buffer (Y = sample value, radius = |sample|).
- */
 export class SignalChapter extends BaseChapter {
   private readonly tubeGeometry: THREE.BufferGeometry;
   private readonly tubePositions: Float32Array;
@@ -36,7 +30,6 @@ export class SignalChapter extends BaseChapter {
   constructor() {
     super('signal', new THREE.Vector3(0, -70, 0));
 
-    // ---- Tube ----
     this.tubePositions = new Float32Array(SAMPLES * RING * 3);
     const indices: number[] = [];
     for (let i = 0; i < SAMPLES - 1; i++) {
@@ -81,7 +74,6 @@ export class SignalChapter extends BaseChapter {
     const wire = new THREE.Mesh(this.tubeGeometry, this.wireMaterial);
     wire.frustumCulled = false;
 
-    // ---- Oscilloscope traces above / below ----
     this.tracePositions = new Float32Array(SAMPLES * 3);
     this.traceGeometry = this.track(new THREE.BufferGeometry());
     const traceAttr = new THREE.BufferAttribute(this.tracePositions, 3);
@@ -104,7 +96,6 @@ export class SignalChapter extends BaseChapter {
     const mirror = new THREE.Line(this.mirrorGeometry, this.mirrorMaterial);
     mirror.frustumCulled = false;
 
-    // ---- Floating dust ----
     const dustCount = Math.round(320 * densityScale());
     const dustPositions = new Float32Array(dustCount * 3);
     for (let i = 0; i < dustCount; i++) {
@@ -136,7 +127,6 @@ export class SignalChapter extends BaseChapter {
       this.dustMaterial.opacity = 0.5 * o;
     });
 
-    // Lay out a flat tube so the first frame isn't degenerate
     this.writeGeometry(0);
   }
 
@@ -144,7 +134,6 @@ export class SignalChapter extends BaseChapter {
     super.setActive(active);
   }
 
-  /** Write the current `wave` values into the tube + trace buffers. */
   private writeGeometry(level: number): void {
     const step = LENGTH / (SAMPLES - 1);
     const pos = this.tubePositions;
@@ -184,7 +173,6 @@ export class SignalChapter extends BaseChapter {
   update(ctx: FrameContext, manager: SceneManager): void {
     const { dt, audio, reducedMotion } = ctx;
 
-    // Downsample the 2048 time-domain samples to SAMPLES points (average per bucket)
     const data = audio.timeDomain;
     const stride = Math.max(1, Math.floor(data.length / SAMPLES));
     for (let i = 0; i < SAMPLES; i++) {
@@ -192,7 +180,6 @@ export class SignalChapter extends BaseChapter {
       const base = i * stride;
       for (let j = 0; j < stride; j++) acc += data[base + j];
       const value = (acc / stride - 128) / 128;
-      // Very light temporal smoothing to keep it readable at 60fps without hiding the signal
       this.wave[i] = damp(this.wave[i], value, 45, dt);
     }
     this.writeGeometry(audio.level);
@@ -207,16 +194,14 @@ export class SignalChapter extends BaseChapter {
     const p = this.smoothProgress;
 
     if (reducedMotion) {
-      // Stay put; only a faint drift with scroll
       this.camPos.set((p - 0.5) * 3, 3.2, 13);
       this.camLook.set((p - 0.5) * 2, 0, 0);
       this.applyCamera(manager, 12);
       return;
     }
 
-    // Travel along the ribbon while orbiting from a side view to a top-down view
     const camX = lerp(-LENGTH / 2 + 6, LENGTH / 2 - 6, p);
-    const theta = lerp(0.18, 1.32, p); // elevation angle around the X axis
+    const theta = lerp(0.18, 1.32, p);
     const dist = 11 - 5.5 * Math.sin(p * Math.PI);
     this.camPos.set(camX - 1.5 + Math.sin(p * Math.PI * 2) * 1.2, Math.sin(theta) * dist, Math.cos(theta) * dist);
     this.camLook.set(camX + 2.5, 0, 0);

@@ -4,19 +4,6 @@ import type { SceneManager } from './scene';
 import type { FrequencyChapter } from './chapters/frequency';
 import { lerp, smoothstep } from './utils';
 
-/**
- * Hero preview fly-through
- * ------------------------
- * While the Start gate is up, the camera leaves the hero and sweeps through the three chapter
- * spaces (Signal → Frequency → Synthesis) in a ~5s loop: one short dolly per chapter, joined by
- * hard cuts that flash the signal-noise transition. It runs on its own GSAP tween, independent
- * of scroll and pointer input, and stops the moment the user presses Start (or "enter silent").
- *
- * The hero stays the *active* chapter the whole time. The preview only takes the camera
- * (SceneManager.setCameraOverride) and shows one chapter group at a time
- * (SceneManager.setChapterVisible), so the normal scroll/crossfade state is untouched.
- */
-
 type ShotId = 'signal' | 'frequency' | 'synthesis';
 
 interface Shot {
@@ -24,13 +11,10 @@ interface Shot {
   index: string;
   label: string;
   duration: number;
-  /** Chapter-local camera path for eased t in 0..1 (written into pos / look). */
   camera(t: number, pos: THREE.Vector3, look: THREE.Vector3): void;
 }
 
-/** Seconds the signal-noise flash lasts after each cut. */
 const CUT_FLASH = 0.22;
-/** Camera damping while dollying inside a shot (higher = tighter follow). */
 const SHOT_DAMPING = 6;
 
 export interface PreviewCaption {
@@ -67,7 +51,6 @@ export class HeroPreview {
         index: '01',
         label: 'Signal',
         duration: 1.8,
-        // Glide along the waveform ribbon from a low three-quarter view, drifting down toward it
         camera: (t, pos, look) => {
           const x = lerp(-13, 7, t);
           pos.set(x, lerp(4.4, 2.6, t), lerp(11, 8.6, t));
@@ -79,7 +62,6 @@ export class HeroPreview {
         index: '02',
         label: 'Frequency',
         duration: 1.7,
-        // Skim in low over the bass rows, then climb and look back across the whole field
         camera: (t, pos, look) => {
           pos.set(lerp(-halfWidth * 0.8, halfWidth * 0.55, t), lerp(2.2, 7.5, t), lerp(frontZ + 9, frontZ - 4, t));
           look.set(lerp(0, -halfWidth * 0.2, t), lerp(2, 1.4, t), lerp(frontZ - 6, -4, t));
@@ -90,7 +72,6 @@ export class HeroPreview {
         index: '03',
         label: 'Synthesis',
         duration: 1.7,
-        // Slow orbit that closes in on the sphere
         camera: (t, pos, look) => {
           const angle = lerp(-0.9, 0.5, t);
           const dist = lerp(9.6, 7.2, t);
@@ -106,12 +87,10 @@ export class HeroPreview {
     return this.running;
   }
 
-  /** Id of the chapter space currently on screen, or null when idle. */
   get currentShot(): ShotId | null {
     return this.running && this.current >= 0 ? this.shots[this.current].id : null;
   }
 
-  /** Total loop length in seconds. */
   get loopDuration(): number {
     return this.total;
   }
@@ -125,8 +104,6 @@ export class HeroPreview {
     document.body.classList.add('is-previewing');
     if (this.caption) this.caption.root.hidden = false;
 
-    // One linear tween across the whole loop; shots and cuts are derived from its playhead so
-    // the sequence stays deterministic across repeats and tab throttling.
     this.tween = gsap.fromTo(
       this.state,
       { time: 0 },
@@ -141,7 +118,6 @@ export class HeroPreview {
     this.tick();
   }
 
-  /** Stop the loop and hand the scene back to the hero (called when the gate closes). */
   stop(): void {
     if (!this.running) return;
     this.running = false;
@@ -151,13 +127,11 @@ export class HeroPreview {
     if (this.current >= 0) this.manager.setChapterVisible(this.shots[this.current].id, false);
     this.current = -1;
 
-    // Give the camera back: SceneManager snaps to the hero's target next frame
     this.manager.setCameraOverride(false);
     this.manager.setGrade(this.manager.active?.id ?? 'hero');
     document.body.classList.remove('is-previewing');
     if (this.caption) this.caption.root.hidden = true;
 
-    // A last, short burst of signal noise as the "real" signal locks in
     if (this.reducedMotion) {
       this.manager.setTransition(0);
     } else {
@@ -196,7 +170,6 @@ export class HeroPreview {
       this.renderCaption(shot);
     }
 
-    // Camera: eased dolly inside the shot (static framing under reduced motion)
     const t = this.reducedMotion ? 0.5 : this.ease(local / shot.duration);
     shot.camera(t, this.pos, this.look);
     const origin = this.manager.getChapter(shot.id)?.group.position;
@@ -206,7 +179,6 @@ export class HeroPreview {
     }
     this.manager.driveCamera(this.pos, this.look, SHOT_DAMPING, cut);
 
-    // Signal-noise flash right after each cut
     if (!this.reducedMotion) {
       this.manager.setTransition(1 - smoothstep(0, CUT_FLASH, local));
     }

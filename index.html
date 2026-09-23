@@ -11,7 +11,6 @@
     <meta name="theme-color" content="#050507" />
     <meta name="color-scheme" content="dark" />
 
-    <!-- Mona12 웹폰트 (src/styles/main.css 의 @import 가 mona.css 를 불러옴). 미리 연결/선로드해 폰트 스왑 지연을 줄인다 -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="preload" as="font" type="font/woff2" href="https://cdn.jsdelivr.net/gh/MonadABXY/mona-font/web/Mona12.woff2" crossorigin />
     <link rel="preload" as="font" type="font/woff2" href="https://cdn.jsdelivr.net/gh/MonadABXY/mona-font/web/Mona12-Bold.woff2" crossorigin />
@@ -20,14 +19,12 @@
       content="ECHO, Web Audio API, Three.js, WebGL, GSAP ScrollTrigger, audio visualizer, creative coding, TypeScript, Vite"
     />
 
-    <!-- Favicon: 파형 아이콘 (SVG data URI, 별도 파일 불필요) -->
     <link
       rel="icon"
       type="image/svg+xml"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23050507'/%3E%3Cpath d='M6 16h3l3-7 4 14 4-10 2 3h4' fill='none' stroke='%235ee6ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
     />
 
-    <!-- Open Graph / Twitter -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="ECHO" />
     <meta property="og:title" content="ECHO — 소리를 공간으로 번역합니다" />
@@ -36,13 +33,7 @@
       content="실제 오디오 신호가 매 프레임 3D 씬을 구동하는 오디오 반응형 스크롤 스토리텔링. Web Audio API × Three.js × GSAP."
     />
     <meta property="og:locale" content="ko_KR" />
-    <!-- TODO: 배포 URL로 교체 -->
     <meta property="og:url" content="https://example.com/" />
-    <!--
-      TODO: og:image 는 아직 없는 placeholder 입니다.
-      배포 전에 1200x630 PNG(예: Synthesis 챕터 캡처)를 public/og-image.png 로 추가하고
-      아래 content 를 절대 URL(https://your-domain/og-image.png)로 교체하세요.
-    -->
     <meta property="og:image" content="https://example.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -56,7 +47,6 @@
     <meta name="twitter:image" content="https://example.com/og-image.png" />
   </head>
   <body class="is-locked">
-    <!-- 인트로 로더 -->
     <div id="loader" class="loader" role="status" aria-live="polite">
       <div class="loader__inner">
         <span class="loader__label">ECHO</span>
@@ -66,7 +56,6 @@
       </div>
     </div>
 
-    <!-- 오디오 활성화 게이트 (브라우저 자동재생 정책 대응) -->
     <div id="gate" class="gate" hidden>
       <div class="gate__inner" role="dialog" aria-modal="true" aria-labelledby="gate-title" aria-describedby="gate-desc">
         <p class="gate__eyebrow">Audio-reactive experience</p>
@@ -89,7 +78,6 @@
         </div>
         <p class="gate__note">‘소리 없이 입장’은 무음 모드로 시작합니다. 시각 효과는 정해진 파동 패턴으로 계속 움직입니다.</p>
       </div>
-      <!-- 프리뷰 플라이스루 캡션: 뒤의 3D 씬이 지금 훑고 있는 챕터 (src/preview.ts 가 갱신) -->
       <p id="gate-preview" class="gate__preview" aria-hidden="true" hidden>
         <span class="gate__preview-eyebrow">Preview</span>
         <span class="gate__preview-index">01</span>
@@ -98,7 +86,6 @@
       </p>
     </div>
 
-    <!-- 3D 캔버스 (장식용) -->
     <canvas id="gl" class="gl" aria-hidden="true"></canvas>
 
     <header class="header">
@@ -109,7 +96,6 @@
         <a href="#synthesis">Synthesis</a>
       </nav>
       <div class="header__actions">
-        <!-- XY 패드 열기/닫기 -->
         <button id="xy-toggle" class="pill xy-toggle" type="button" aria-expanded="false" aria-controls="xy" aria-label="XY 패드 열기">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
             <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -118,7 +104,6 @@
           </svg>
           <span class="mute__label">XY pad</span>
         </button>
-        <!-- 무음 모드: 청각 접근성 대체 모드 -->
         <button id="silent-toggle" class="pill silent" type="button" aria-pressed="false" aria-describedby="silent-desc" aria-label="무음 모드 켜기">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
             <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
@@ -140,12 +125,10 @@
         </button>
       </div>
     </header>
-    <!-- 무음 모드 안내: 켜져 있을 때만 보이고, 스크린리더에는 항상 설명으로 연결됨 -->
     <p id="silent-desc" class="silent__note">
       무음 모드 — 청각 접근성을 위한 대체 모드입니다. 소리를 끄고, 시각 효과는 미리 정의된 잔잔한 파동 패턴으로 계속 움직입니다.
     </p>
 
-    <!-- XY 패드: X = 필터 컷오프, Y = 피치 벤드 -->
     <aside id="xy" class="xy" hidden aria-labelledby="xy-title">
       <div class="xy__head">
         <span id="xy-title" class="xy__title">XY pad</span>
@@ -165,7 +148,6 @@
       <p id="xy-status" class="xy__status" role="status">Cutoff 18.0 kHz · Pitch +0 st</p>
     </aside>
 
-    <!-- 우측 세로 챕터 진행 레일 -->
     <nav id="progress" class="progress" aria-label="챕터 진행">
       <div
         class="progress__track"
@@ -194,7 +176,6 @@
     </nav>
 
     <main id="main">
-      <!-- 히어로 -->
       <section id="hero" class="hero section">
         <div class="hero__content">
           <p class="hero__eyebrow">Oscillator → Analyser → WebGL</p>
@@ -210,7 +191,6 @@
         </div>
       </section>
 
-      <!-- 챕터 1: Signal -->
       <section id="signal" class="chapter section chapter--signal" data-chapter="signal" aria-labelledby="signal-title">
         <div class="chapter__content">
           <span class="chapter__index">01 — Time domain</span>
@@ -227,7 +207,6 @@
         </div>
       </section>
 
-      <!-- 챕터 2: Frequency -->
       <section id="frequency" class="chapter section chapter--frequency" data-chapter="frequency" aria-labelledby="frequency-title">
         <div class="chapter__content">
           <span class="chapter__index">02 — Frequency domain</span>
@@ -244,7 +223,6 @@
         </div>
       </section>
 
-      <!-- 챕터 3: Synthesis -->
       <section id="synthesis" class="chapter section chapter--synthesis" data-chapter="synthesis" aria-labelledby="synthesis-title">
         <div class="chapter__content">
           <span class="chapter__index">03 — Play</span>
@@ -277,7 +255,6 @@
                 </label>
               </div>
             </fieldset>
-            <!-- 코드 모드: 패드 하나 = 근음 + 3도 + 5도 (C 메이저 다이어토닉 3화음) -->
             <button id="chord-toggle" class="chord" type="button" aria-pressed="false" aria-describedby="chord-desc">
               <span class="chord__dot" aria-hidden="true"></span>
               <span class="chord__label">Chord</span>
@@ -293,7 +270,6 @@
             <span id="capture-status" class="sr-only" role="status" aria-live="polite"></span>
           </div>
 
-          <!-- 이펙트 센드 (ConvolverNode 리버브 / DelayNode 딜레이) -->
           <div class="fx" role="group" aria-label="이펙트">
             <label class="fx__control" for="fx-reverb">
               <span class="fx__label">Reverb</span>
@@ -307,7 +283,6 @@
             </label>
           </div>
 
-          <!-- 8스텝 시퀀서 -->
           <div id="sequencer" class="seq" role="group" aria-label="8스텝 시퀀서" aria-describedby="seq-hint">
             <div class="seq__transport">
               <button id="seq-play" class="seq__play" type="button" aria-pressed="false" aria-label="시퀀서 재생">
@@ -323,7 +298,6 @@
                 <span class="fx__label">BPM</span>
                 <input id="seq-bpm" type="number" min="60" max="200" step="1" value="120" inputmode="numeric" aria-label="BPM" />
               </label>
-              <!-- 멜로디 링크 공유: 시퀀스/BPM/파형/코드 모드를 URL 쿼리로 인코딩 -->
               <button id="seq-share" class="seq__share" type="button" aria-describedby="seq-status">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
                   <path d="M10 14a4 4 0 0 1 0-5.6l2.4-2.4a4 4 0 0 1 5.6 5.6l-1.2 1.2" />
@@ -381,10 +355,8 @@
         </div>
       </section>
 
-      <!-- Synthesis → Outro 컨버전스: 세 모티프의 잔상이 한 점으로 모였다가 흩어지는 스크럽 구간 (3D만, 텍스트 없음) -->
       <section id="convergence" class="convergence section" aria-hidden="true"></section>
 
-      <!-- 아웃트로 -->
       <section id="outro" class="outro section" aria-labelledby="outro-title">
         <div class="outro__content">
           <p class="outro__eyebrow">Built with</p>

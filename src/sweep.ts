@@ -2,21 +2,11 @@ import type { AudioEngine } from './audio';
 import { clamp } from './utils';
 
 export interface SweepOptions {
-  /** Return true to ignore an event whose target sits inside a control that owns its own drag (XY pad, sliders). */
   ignore?: (target: EventTarget | null) => boolean;
-  /** Return true while another controller (the XY pad) is driving the cutoff. */
   paused?: () => boolean;
-  /** Called with the new position 0..1 whenever this controller moves the cutoff. */
   onChange?: (position: number) => void;
 }
 
-/**
- * Master low-pass filter sweep.
- * - Mouse / pen: the pointer's X position across the viewport maps directly onto the cutoff
- *   (left = closed, right = open).
- * - Touch: horizontal finger movement anywhere on the page nudges the cutoff relatively,
- *   so vertical scrolling barely changes it while a deliberate left/right drag sweeps it.
- */
 export function setupFilterSweep(audio: AudioEngine, options: SweepOptions = {}): () => void {
   const ignore = options.ignore ?? (() => false);
   const paused = options.paused ?? (() => false);

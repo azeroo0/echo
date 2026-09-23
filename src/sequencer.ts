@@ -5,7 +5,6 @@ export interface SequencerNote {
   index: number;
   note: string;
   frequency: number;
-  /** Physical key code that also assigns this note to a focused step, e.g. "KeyA" */
   code: string;
 }
 
@@ -13,22 +12,14 @@ export interface SequencerOptions {
   root: HTMLElement;
   audio: AudioEngine;
   notes: SequencerNote[];
-  /** Fired on the main thread at the moment a step sounds (for visuals). */
   onStep: (step: number, note: SequencerNote | null) => void;
 }
 
-/** Default pattern (indices into `notes`, null = rest): C4 · E4 G4 · A4 C5 · */
 const DEFAULT_PATTERN: Array<number | null> = [0, null, 2, 3, null, 4, 5, null];
 const TICK_MS = 25;
 const MIN_BPM = 60;
 const MAX_BPM = 200;
 
-/**
- * 8-step sequencer driven by the AudioContext clock.
- * A setInterval "tick" schedules any notes that fall inside the look-ahead window with
- * exact `when` times, so playback stays tight even if the main thread hiccups.
- * Visual highlights are timed with setTimeout to land when the note actually sounds.
- */
 export class Sequencer {
   private readonly root: HTMLElement;
   private readonly audio: AudioEngine;
@@ -108,7 +99,6 @@ export class Sequencer {
     return this.steps.length;
   }
 
-  /** Replace the whole pattern (used when a shared link is opened). Does not start playback. */
   loadPattern(pattern: ReadonlyArray<number | null>): void {
     for (let i = 0; i < this.steps.length; i++) {
       const value = pattern[i];
@@ -120,11 +110,9 @@ export class Sequencer {
   }
 
   private get stepDuration(): number {
-    // Eight steps = one bar of eighth notes
     return 60 / this.bpm / 2;
   }
 
-  /** Move a step to the next/previous note; wraps through a rest. Auditions the new note. */
   cycle(step: number, direction: 1 | -1): void {
     const count = this.notes.length;
     const current = this.steps[step];
@@ -166,7 +154,6 @@ export class Sequencer {
       default:
         break;
     }
-    // Pad letter keys assign that note to the focused step (the global pad handler plays it)
     if (!event.repeat) {
       const note = this.notes.find((n) => n.code === event.code);
       if (note) this.setStep(step, note.index);
@@ -187,12 +174,10 @@ export class Sequencer {
     if (this.bpmInput) this.bpmInput.value = String(this.bpm);
   }
 
-  /** Set the tempo. `syncInput` also writes the field (for programmatic changes such as shared links). */
   setBpm(value: number, syncInput = false): void {
     if (!Number.isFinite(value)) return;
     this.bpm = clamp(Math.round(value), MIN_BPM, MAX_BPM);
     this.audio.setTempo(this.bpm);
-    // Only normalise the field when the value is out of range so typing isn't fought
     if (this.bpmInput && (syncInput || value < MIN_BPM || value > MAX_BPM)) this.renderBpm();
   }
 
@@ -235,7 +220,6 @@ export class Sequencer {
   private readonly tick = (): void => {
     if (!this.playing) return;
     const ctx = this.audio.context;
-    // Background tabs throttle timers to ~1s, so look further ahead there
     const lookAhead = document.hidden ? 1.2 : 0.12;
     while (this.nextTime < ctx.currentTime + lookAhead) {
       this.fire(this.current, this.nextTime);

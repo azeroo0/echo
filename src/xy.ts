@@ -4,9 +4,7 @@ import { clamp } from './utils';
 
 export interface XYPadHandle {
   readonly root: HTMLElement;
-  /** True while a pointer is dragging on the surface (the global sweep pauses then). */
   readonly isDragging: boolean;
-  /** Mirror an externally driven cutoff position (from the pointer sweep) onto the dot. */
   setFilterPosition(position: number): void;
   setExpanded(expanded: boolean): void;
   readonly isExpanded: boolean;
@@ -14,7 +12,6 @@ export interface XYPadHandle {
 }
 
 const KEY_STEP_X = 0.04;
-/** One semitone over a ±1 octave span. */
 const KEY_STEP_Y = 1 / 24;
 
 const formatHz = (hz: number) => (hz >= 1000 ? `${(hz / 1000).toFixed(1)} kHz` : `${Math.round(hz)} Hz`);
@@ -23,13 +20,6 @@ const formatBend = (cents: number) => {
   return `${semis > 0 ? '+' : ''}${semis} st`;
 };
 
-/**
- * Square XY trackpad.
- *   X → master filter cutoff (same parameter the pointer sweep drives)
- *   Y → pitch bend of every sounding voice (+ drone), ±1 octave; springs back to centre on release
- * Pointer events cover mouse, pen and touch (touch-action: none on the surface).
- * Keyboard: ←→ cutoff, ↑↓ one semitone, Home resets pitch, End opens the filter.
- */
 export function setupXYPad(
   root: HTMLElement,
   toggle: HTMLButtonElement,
@@ -78,7 +68,6 @@ export function setupXYPad(
     push();
   };
 
-  /** Pitch wheel behaviour: Y springs back to the centre, X (cutoff) holds. */
   const releasePitch = () => {
     gsap.killTweensOf(state);
     if (reducedMotion) {

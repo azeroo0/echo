@@ -1,20 +1,9 @@
 import type { AudioEngine } from './audio';
 
-/** Loudness below this leaves the titles completely still. */
 const THRESHOLD = 0.34;
-/** Max extra letter-spacing (em) and variable-font weight added at full loudness. */
 const MAX_SPACING_EM = 0.016;
 const MAX_WEIGHT = 60;
 
-/**
- * Audio-reactive chapter titles.
- * Writes two CSS custom properties on <html> every frame:
- *   --title-pulse   extra letter-spacing in em (0 while quiet)
- *   --title-weight  extra 'wght' for variable fonts (ignored by static fonts)
- * Only the loudness above THRESHOLD counts, and a small high-frequency wobble is layered on
- * so loud passages make the letters tremble slightly rather than just widen.
- * Disabled entirely under prefers-reduced-motion.
- */
 export function setupTypography(audio: AudioEngine, reducedMotion: boolean): () => void {
   const root = document.documentElement;
   if (reducedMotion) {

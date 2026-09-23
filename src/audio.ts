@@ -1,29 +1,11 @@
 import { clamp, damp } from './utils';
 
-/**
- * AudioEngine
- * -----------
- * One AudioContext shared by the whole app.
- *
- * Routing:
- *   ambient drone ──────────────────────────────┐
- *   note voices ─> voiceBus ─┬─ (dry) ──────────┼─> master GainNode ─> lowpass BiquadFilterNode ─> AnalyserNode ─> destination
- *                            ├─ reverbSend ─> ConvolverNode ─┘             (filter sweep: pointer X / XY pad)
- *                            └─ delaySend ──> DelayNode ⟲ feedback ─┘
- *
- * Every visual in the app reads from `timeDomain` / `frequency`, which are refreshed
- * once per frame in `update()` via getByteTimeDomainData / getByteFrequencyData.
- * In silent mode the master gain is 0 and those buffers are filled with a calm,
- * predefined periodic pattern instead, so the visuals keep moving without sound.
- */
-
 export const WAVEFORMS = ['sine', 'square', 'sawtooth', 'triangle'] as const;
 export type Waveform = (typeof WAVEFORMS)[number];
 
 export const isWaveform = (value: unknown): value is Waveform =>
   typeof value === 'string' && (WAVEFORMS as readonly string[]).includes(value);
 
-/** Perceived-loudness compensation per waveform (square/saw carry far more energy). */
 const VOICE_PEAK: Record<Waveform, number> = {
   sine: 0.55,
   triangle: 0.45,
@@ -31,26 +13,18 @@ const VOICE_PEAK: Record<Waveform, number> = {
   sawtooth: 0.26,
 };
 
-/** Chord mode plays three voices per note; each is scaled down so the sum stays about as loud. */
 const CHORD_VOICE_GAIN = 0.6;
 
-/** Master low-pass sweep range (Hz) and the curve that maps pointer position 0..1 onto it. */
 export const FILTER_MIN_HZ = 260;
 export const FILTER_MAX_HZ = 18000;
 const FILTER_CURVE = 0.7;
 
-/** Pitch bend range in cents (±1 octave). */
 export const PITCH_BEND_RANGE = 1200;
 
 const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 const C4 = 261.63;
 const TWO_PI = Math.PI * 2;
 
-/**
- * Diatonic third and fifth (semitones above the root) for a root inside the C major scale.
- * C→E G (major), D→F A (minor), E→G B (minor), G→B D (major), A→C E (minor), B→D F (dim).
- * Roots outside the scale fall back to a plain major triad.
- */
 export function triadIntervals(frequency: number): [number, number] {
   const semitones = Math.round(12 * Math.log2(frequency / C4));
   const pitchClass = ((semitones % 12) + 12) % 12;
@@ -62,17 +36,11 @@ export function triadIntervals(frequency: number): [number, number] {
 }
 
 export interface NoteOptions {
-  /** Overrides the engine-wide waveform for this note only. */
   waveform?: Waveform;
-  /** seconds */
   attack?: number;
-  /** seconds */
   decay?: number;
-  /** linear peak gain of the voice envelope */
   peak?: number;
-  /** AudioContext time to start at (defaults to now). Used by the sequencer for precise scheduling. */
   when?: number;
-  /** Play only the root even when chord mode is on. */
   single?: boolean;
 }
 
@@ -84,7 +52,6 @@ interface Voice {
 interface AmbientGraph {
   bus: GainNode;
   oscillators: OscillatorNode[];
-  /** Audible oscillators (not LFOs) that follow the pitch bend. */
   tonal: OscillatorNode[];
   nodes: AudioNode[];
 }
@@ -98,10 +65,8 @@ const BANDS = {
 export class AudioEngine {
   readonly context: AudioContext;
   readonly master: GainNode;
-  /** Master low-pass filter, swept by pointer X / the XY pad. Sits between master and analyser. */
   readonly filter: BiquadFilterNode;
   readonly analyser: AnalyserNode;
-  /** All played notes go through here before the master (and into the effect sends). */
   readonly voiceBus: GainNode;
 
   private readonly reverb: ConvolverNode;
@@ -113,18 +78,13 @@ export class AudioEngine {
   private reverbLevel = 0;
   private delayLevel = 0;
 
-  /** Raw time-domain samples (0..255, 128 = silence). Length = fftSize. */
   readonly timeDomain: Uint8Array<ArrayBuffer>;
-  /** Raw frequency magnitudes (0..255). Length = fftSize / 2. */
   readonly frequency: Uint8Array<ArrayBuffer>;
 
-  /** Smoothed RMS loudness 0..1 (fast attack, slow release). */
   level = 0;
-  /** Smoothed band energies 0..1. */
   bass = 0;
   mid = 0;
   treble = 0;
-  /** Short transient that spikes when a note is triggered and decays quickly. */
   impulse = 0;
 
   private readonly volume = 0.8;
@@ -148,13 +108,11 @@ export class AudioEngine {
       throw new Error('Web Audio API is not supported in this browser.');
     }
 
-    // The context may start in "suspended" state; it is resumed in start() after a user gesture.
     this.context = new Ctor({ latencyHint: 'interactive' });
 
     this.master = this.context.createGain();
     this.master.gain.value = this.volume;
 
-    // Master low-pass: fully open by default, swept by pointer X (see src/sweep.ts / src/xy.ts)
     this.filter = this.context.createBiquadFilter();
     this.filter.type = 'lowpass';
     this.filter.frequency.value = FILTER_MAX_HZ;
@@ -170,12 +128,10 @@ export class AudioEngine {
     this.filter.connect(this.analyser);
     this.analyser.connect(this.context.destination);
 
-    // ---- Voice bus + effect sends (played notes only; the drone stays dry) ----
     this.voiceBus = this.context.createGain();
     this.voiceBus.gain.value = 1;
     this.voiceBus.connect(this.master);
 
-    // Reverb: synthesized impulse response (no audio files), send -> convolver -> master
     this.reverb = this.context.createConvolver();
     this.reverb.buffer = this.createImpulseResponse(2.6, 3.2);
     this.reverbSend = this.context.createGain();
@@ -184,7 +140,6 @@ export class AudioEngine {
     this.reverbSend.connect(this.reverb);
     this.reverb.connect(this.master);
 
-    // Delay: send -> delay -> master, with a darkened feedback loop (dotted-eighth at the current tempo)
     this.delay = this.context.createDelay(2);
     this.delay.delayTime.value = 0.375;
     this.delaySend = this.context.createGain();
@@ -217,27 +172,22 @@ export class AudioEngine {
     return this.muted;
   }
 
-  /** Silent mode: master gain 0, visuals driven by a predefined pattern (hearing accessibility). */
   get isSilent(): boolean {
     return this.silent;
   }
 
-  /** Chord mode: every note also sounds its diatonic third and fifth. */
   get chordMode(): boolean {
     return this.chord;
   }
 
-  /** Current pitch bend in cents (applied to all voices and the drone). */
   get pitchBend(): number {
     return this.bend;
   }
 
-  /** Master filter sweep position 0 (closed) .. 1 (open). */
   get filterPosition(): number {
     return this.filterPos;
   }
 
-  /** Master filter cutoff in Hz that corresponds to `filterPosition`. */
   get filterCutoff(): number {
     return AudioEngine.cutoffForPosition(this.filterPos);
   }
@@ -247,7 +197,6 @@ export class AudioEngine {
     return FILTER_MIN_HZ * Math.pow(FILTER_MAX_HZ / FILTER_MIN_HZ, Math.pow(x, FILTER_CURVE));
   }
 
-  /** Waveform used by every oscillator that playNote() creates. */
   get currentWaveform(): Waveform {
     return this.waveform;
   }
@@ -268,19 +217,16 @@ export class AudioEngine {
     return this.delayLevel;
   }
 
-  /** Reverb send level 0..1 (0 = dry). */
   setReverb(amount: number): void {
     this.reverbLevel = clamp(amount, 0, 1);
     this.rampParam(this.reverbSend.gain, this.reverbLevel * 1.2);
   }
 
-  /** Delay send level 0..1 (0 = dry). */
   setDelay(amount: number): void {
     this.delayLevel = clamp(amount, 0, 1);
     this.rampParam(this.delaySend.gain, this.delayLevel * 0.9);
   }
 
-  /** Keeps the delay time musically related to the sequencer tempo (dotted eighth). */
   setTempo(bpm: number): void {
     const beat = 60 / clamp(bpm, 30, 300);
     const t = this.context.currentTime;
@@ -288,10 +234,6 @@ export class AudioEngine {
     this.delay.delayTime.setTargetAtTime(beat * 0.75, t, 0.05);
   }
 
-  /**
-   * Master low-pass sweep. `position` 0 = closed (260Hz), 1 = fully open (18kHz), exponential in between.
-   * Because the filter sits before the analyser, closing it also dims the visuals.
-   */
   setFilterPosition(position: number): void {
     this.filterPos = clamp(position, 0, 1);
     const t = this.context.currentTime;
@@ -299,10 +241,6 @@ export class AudioEngine {
     this.filter.frequency.setTargetAtTime(this.filterCutoff, t, 0.03);
   }
 
-  /**
-   * Pitch bend in cents (±PITCH_BEND_RANGE). Applied to every voice that is currently sounding,
-   * to the audible drone oscillators, and to every voice created afterwards.
-   */
   setPitchBend(cents: number): void {
     this.bend = clamp(cents, -PITCH_BEND_RANGE, PITCH_BEND_RANGE);
     const t = this.context.currentTime;
@@ -321,7 +259,6 @@ export class AudioEngine {
     param.setTargetAtTime(this.bend, t, 0.02);
   }
 
-  /** Bump the visual transient (used when a scheduled sequencer note actually sounds). */
   kick(amount = 0.8): void {
     this.impulse = Math.min(1.5, this.impulse + amount);
   }
@@ -333,10 +270,6 @@ export class AudioEngine {
     param.linearRampToValueAtTime(value, t + seconds);
   }
 
-  /**
-   * Exponentially decaying stereo noise burst used as the reverb impulse response.
-   * Normalised to unit energy so the wet level is predictable.
-   */
   private createImpulseResponse(duration: number, decay: number): AudioBuffer {
     const rate = this.context.sampleRate;
     const length = Math.max(1, Math.floor(rate * duration));
@@ -368,7 +301,6 @@ export class AudioEngine {
     return this.analyser.frequencyBinCount;
   }
 
-  /** Hz covered by a single FFT bin. */
   get binWidth(): number {
     return this.context.sampleRate / this.analyser.fftSize;
   }
@@ -377,7 +309,6 @@ export class AudioEngine {
     return clamp(Math.round(hz / this.binWidth), 0, this.binCount - 1);
   }
 
-  /** Average magnitude (0..1) of all bins between lowHz and highHz (inclusive). */
   bandEnergy(lowHz: number, highHz: number): number {
     const lo = this.binForFrequency(lowHz);
     const hi = Math.max(lo, this.binForFrequency(highHz));
@@ -386,10 +317,6 @@ export class AudioEngine {
     return sum / ((hi - lo + 1) * 255);
   }
 
-  /**
-   * Must be called from a user gesture (click / keydown) because of autoplay policies.
-   * Resumes the context and starts the ambient drone exactly once.
-   */
   async start(): Promise<void> {
     if (this.context.state !== 'running') {
       await this.context.resume();
@@ -400,11 +327,6 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * Low ambient drone: a 55Hz sine fundamental with a quiet fifth and a very soft
-   * filtered harmonic layer so the spectrum has something to show above the fundamental.
-   * Everything is synthesized – no audio files.
-   */
   private startAmbient(): void {
     const ctx = this.context;
     const now = ctx.currentTime;
@@ -414,7 +336,6 @@ export class AudioEngine {
     bus.gain.linearRampToValueAtTime(1, now + 2.5);
     bus.connect(this.master);
 
-    // Fundamental: pure sine, A1 (55Hz)
     const fundamental = ctx.createOscillator();
     fundamental.type = 'sine';
     fundamental.frequency.value = 55;
@@ -422,7 +343,6 @@ export class AudioEngine {
     fundamentalGain.gain.value = 0.34;
     fundamental.connect(fundamentalGain).connect(bus);
 
-    // Fifth: sine E2 (82.41Hz) with a slow tremolo LFO on its gain
     const fifth = ctx.createOscillator();
     fifth.type = 'sine';
     fifth.frequency.value = 82.41;
@@ -437,7 +357,6 @@ export class AudioEngine {
     tremoloDepth.gain.value = 0.05;
     tremolo.connect(tremoloDepth).connect(fifthGain.gain);
 
-    // Air: very quiet sawtooth an octave up through a slowly sweeping low-pass filter
     const air = ctx.createOscillator();
     air.type = 'sawtooth';
     air.frequency.value = 110;
@@ -470,12 +389,6 @@ export class AudioEngine {
     };
   }
 
-  /**
-   * Trigger a short synthesized note.
-   * Creates a fresh OscillatorNode + GainNode, applies an attack/decay envelope,
-   * and disconnects everything once playback ends so nothing leaks.
-   * In chord mode the diatonic third and fifth sound together with the root.
-   */
   playNote(frequency: number, options: NoteOptions = {}): void {
     if (this.context.state !== 'running') return;
 
@@ -494,7 +407,6 @@ export class AudioEngine {
       this.spawnVoice(frequency * Math.pow(2, fifth / 12), waveform, now, attack, decay, peak * 0.8);
     }
 
-    // Scheduled (future) notes get their visual kick from the scheduler when they sound
     if (now - currentTime < 0.03) this.kick(chord ? 1 : 0.8);
   }
 
@@ -513,7 +425,6 @@ export class AudioEngine {
     osc.frequency.value = frequency;
     osc.detune.value = this.bend;
 
-    // A quieter partial one octave up (same waveform) gives the pluck a little shimmer.
     const octave = ctx.createOscillator();
     octave.type = waveform;
     octave.frequency.value = frequency * 2;
@@ -559,10 +470,6 @@ export class AudioEngine {
     return this.muted;
   }
 
-  /**
-   * Silent mode (hearing-accessibility alternative): master gain goes to 0 and `update()`
-   * synthesizes calm periodic analyser data so every visual keeps running.
-   */
   setSilentMode(enabled: boolean): void {
     if (enabled === this.silent) return;
     this.silent = enabled;
@@ -581,11 +488,6 @@ export class AudioEngine {
     this.master.gain.linearRampToValueAtTime(target, t + 0.12);
   }
 
-  /**
-   * Predefined "calm waves" pattern used instead of analyser data in silent mode:
-   * two slow sines in the time domain, a breathing bass hump plus a wandering mid peak in
-   * the spectrum, and a soft impulse every ~2.4s so particle bursts keep happening.
-   */
   private synthesizeVisualData(dt: number): void {
     this.silentTime += dt;
     const t = this.silentTime;
@@ -622,7 +524,6 @@ export class AudioEngine {
     }
   }
 
-  /** Pull fresh analyser data and update smoothed metrics. Call once per rendered frame. */
   update(dt: number): void {
     if (this.silent) {
       this.synthesizeVisualData(dt);
@@ -631,7 +532,6 @@ export class AudioEngine {
       this.analyser.getByteFrequencyData(this.frequency);
     }
 
-    // RMS of the waveform -> loudness
     let sum = 0;
     const n = this.timeDomain.length;
     for (let i = 0; i < n; i++) {
@@ -659,7 +559,6 @@ export class AudioEngine {
         try {
           osc.stop(now);
         } catch {
-          /* already stopped */
         }
         osc.disconnect();
       }
@@ -671,7 +570,6 @@ export class AudioEngine {
         try {
           osc.stop();
         } catch {
-          /* already stopped */
         }
         osc.disconnect();
       }

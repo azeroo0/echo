@@ -9,12 +9,6 @@ const MAX_HZ = 9000;
 const SPACING = 1.15;
 const MAX_HEIGHT = 7.5;
 
-/**
- * Chapter 2 — Frequency
- * A grid of instanced bars. Each bar owns one log-spaced slice of the FFT.
- * Rows run front (low frequencies) to back (high frequencies) and rise as they go.
- * Height, brightness and hue all come from getByteFrequencyData each frame.
- */
 export class FrequencyChapter extends BaseChapter {
   private readonly rows: number;
   private readonly cols: number;
@@ -40,12 +34,11 @@ export class FrequencyChapter extends BaseChapter {
     const mobile = isMobile();
     this.rows = mobile ? 12 : 24;
     this.cols = 16;
-    this.count = this.rows * this.cols; // 192 on mobile, 384 on desktop
+    this.count = this.rows * this.cols;
 
     this.zFront = ((this.rows - 1) / 2) * SPACING;
     this.zBack = -this.zFront;
 
-    // Log-spaced frequency slices, ordered front-left -> back-right
     this.binLow = new Uint16Array(this.count);
     this.binHigh = new Uint16Array(this.count);
     this.values = new Float32Array(this.count);
@@ -73,7 +66,6 @@ export class FrequencyChapter extends BaseChapter {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
 
-    // Initialise matrices + colours (this also allocates instanceColor)
     for (let i = 0; i < this.count; i++) {
       this.writeInstance(i, 0);
     }
@@ -114,25 +106,21 @@ export class FrequencyChapter extends BaseChapter {
     this.dummy.updateMatrix();
     this.mesh.setMatrixAt(i, this.dummy.matrix);
 
-    // Hue drifts from cyan (bass, front) to magenta (treble, back); lightness = energy
     const hue = 0.52 + (row / Math.max(1, this.rows - 1)) * 0.36;
     this.color.setHSL(hue, 0.85, 0.1 + value * 0.6);
     this.mesh.setColorAt(i, this.color);
   }
 
-  /** Z (chapter-local) of the front / bass row — used by the hero preview to frame the field. */
   get frontZ(): number {
     return this.zFront;
   }
 
-  /** Half the field width (chapter-local X extent of the bar grid). */
   get halfWidth(): number {
     return ((this.cols - 1) / 2) * SPACING;
   }
 
   setActive(active: boolean): void {
     super.setActive(active);
-    // When inactive nothing is drawn or uploaded; the shared BoxGeometry (24 verts) stays resident.
     this.mesh.count = active ? this.count : 0;
   }
 
@@ -170,8 +158,6 @@ export class FrequencyChapter extends BaseChapter {
       return;
     }
 
-    // Fly-through: enter low at the front, weave between columns, climb toward the back,
-    // then lift up in the final stretch to look down over the whole field.
     const z = lerp(this.zFront + 13, this.zBack - 5, p);
     const climb = smoothstep(0, 1, p);
     const y = lerp(2.2, 12, climb);

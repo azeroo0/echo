@@ -1,10 +1,6 @@
 import gsap from 'gsap';
 import { clamp, damp } from './utils';
 
-/**
- * Intro loader: a 0→100% counter that eases toward the *real* initialisation progress.
- * With prefers-reduced-motion the counter jumps straight to the reported value.
- */
 export class Loader {
   private target = 0;
   private shown = 0;
@@ -28,7 +24,6 @@ export class Loader {
     }
   }
 
-  /** Report actual progress 0..1. */
   set(progress: number): void {
     this.target = clamp(progress, 0, 1);
     if (this.reducedMotion) {
@@ -39,7 +34,6 @@ export class Loader {
   }
 
   private readonly tick = (now: number): void => {
-    // Time-based easing so the counter converges in ~1s regardless of frame rate
     const dt = Math.min(0.1, Math.max(0, (now - this.lastTick) / 1000));
     this.lastTick = now;
     this.shown = damp(this.shown, this.target, 5, dt);
@@ -76,7 +70,6 @@ export class Loader {
     });
   }
 
-  /** Replace the counter with an error message (WebGL / Web Audio unavailable). */
   fail(message: string): void {
     if (this.rafId !== null) cancelAnimationFrame(this.rafId);
     const errorEl = this.root.querySelector<HTMLElement>('#loader-error');
@@ -89,14 +82,9 @@ export class Loader {
 }
 
 export interface GateResult {
-  /** true = user chose to hear audio, false = enter muted */
   sound: boolean;
 }
 
-/**
- * Shows the "Start" gate and resolves when the user picks an option.
- * The click that resolves this is the user gesture that lets AudioContext.resume() succeed.
- */
 export function openGate(gate: HTMLElement, reducedMotion: boolean): Promise<GateResult> {
   return new Promise<GateResult>((resolve) => {
     const startButton = gate.querySelector<HTMLButtonElement>('#gate-start');

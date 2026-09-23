@@ -2,29 +2,20 @@ export interface Pad {
   index: number;
   frequency: number;
   note: string;
-  /** Physical key code, e.g. "KeyA" */
   code: string;
   element: HTMLButtonElement;
 }
 
 export interface PadsOptions {
-  /** Return false to ignore global key presses (e.g. when the Synthesis chapter is not on screen). */
   keysEnabled?: () => boolean;
 }
 
 export interface PadsHandle {
   pads: Pad[];
-  /** Briefly light a pad up (used when the sequencer plays it). */
   flash: (pad: Pad) => void;
   dispose: () => void;
 }
 
-/**
- * Wires the Synthesis pads.
- * - Click / Enter / Space on a focused pad -> native button click -> trigger
- * - Physical keys A S D F G H J K L anywhere on the page (via event.code, so it works
- *   regardless of keyboard layout or IME state) -> trigger
- */
 export function setupPads(
   container: HTMLElement,
   onTrigger: (pad: Pad) => void,

@@ -1,10 +1,5 @@
 import type { AudioEngine } from './audio';
 
-/**
- * Custom cursor that follows the mouse and pulses with the analyser's average amplitude
- * (`audio.level`, the smoothed RMS of the time-domain buffer).
- * Only created for fine pointers with hover support — touch devices keep the native behaviour.
- */
 export function setupCursor(audio: AudioEngine, reducedMotion: boolean): () => void {
   const finePointer =
     window.matchMedia('(pointer: fine)').matches && window.matchMedia('(hover: hover)').matches;
@@ -58,7 +53,6 @@ export function setupCursor(audio: AudioEngine, reducedMotion: boolean): () => v
     x += (targetX - x) * follow;
     y += (targetY - y) * follow;
 
-    // Average amplitude -> size. `level` is already attack/release smoothed in AudioEngine.
     const targetScale = 1 + audio.level * 1.3 + audio.impulse * 0.35;
     scale += (targetScale - scale) * 0.3;
 

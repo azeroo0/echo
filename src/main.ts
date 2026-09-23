@@ -20,14 +20,6 @@ import { buildShareUrl, copyToClipboard, readSharedState } from './share';
 import { setupTypography } from './typography';
 import { nextFrame, prefersReducedMotion, requireElement } from './utils';
 
-/**
- * Boot sequence
- * 1. Loader counts toward real initialisation progress
- * 2. AudioEngine (context stays suspended), SceneManager, chapters, shader precompile
- * 3. ScrollTrigger wiring
- * 4. Gate (with the looping hero preview fly-through behind it) -> user gesture -> AudioContext.resume() + ambient drone
- * 5. Unlock scrolling
- */
 async function bootstrap(): Promise<void> {
   const reducedMotion = prefersReducedMotion();
 
@@ -59,7 +51,6 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  // ---- Chapters ----
   const hero = new HeroChapter();
   manager.addChapter(hero);
   loader.set(0.5);
@@ -80,7 +71,6 @@ async function bootstrap(): Promise<void> {
   loader.set(0.78);
   await nextFrame();
 
-  // Synthesis -> Outro convergence (scroll-scrubbed, no pinned copy of its own)
   const convergence = new ConvergenceChapter(audio);
   manager.addChapter(convergence);
   loader.set(0.84);
@@ -90,7 +80,6 @@ async function bootstrap(): Promise<void> {
   loader.set(0.9);
   await nextFrame();
 
-  // ---- Scroll ----
   const chapterTriggers = setupScroll(manager, requireElement<HTMLElement>('#hero'), [
     { element: requireElement<HTMLElement>('#signal'), chapter: signal },
     { element: requireElement<HTMLElement>('#frequency'), chapter: frequency },
@@ -101,7 +90,6 @@ async function bootstrap(): Promise<void> {
     outro: requireElement<HTMLElement>('#outro'),
   });
 
-  // ---- Progress rail ----
   const disposeProgress = setupProgress(requireElement<HTMLElement>('#progress'), chapterTriggers, reducedMotion);
 
   manager.activate('hero', true);
@@ -110,10 +98,6 @@ async function bootstrap(): Promise<void> {
 
   await loader.done;
 
-  // ---- Gate (user gesture for autoplay policy) + hero preview fly-through ----
-  // While the gate is up the camera loops through the three chapter spaces. The AudioContext is
-  // still suspended (autoplay policy), so the analyser buffers are filled with the silent-mode
-  // pattern for now; the real signal takes over the moment the user presses Start.
   const gate = requireElement<HTMLElement>('#gate');
   const previewRoot = gate.querySelector<HTMLElement>('#gate-preview');
   const preview = new HeroPreview(
@@ -134,7 +118,6 @@ async function bootstrap(): Promise<void> {
   const { sound } = await openGate(gate, reducedMotion);
 
   preview.stop();
-  // "소리 없이 입장" simply keeps silent mode on; Start hands the visuals back to the live analyser
   audio.setSilentMode(!sound);
 
   try {
@@ -143,7 +126,6 @@ async function bootstrap(): Promise<void> {
     console.warn('AudioContext could not be resumed:', error);
   }
 
-  // ---- Mute ----
   const muteButton = requireElement<HTMLButtonElement>('#mute-toggle');
   const muteLabel = muteButton.querySelector<HTMLElement>('.mute__label');
   const renderMute = () => {
@@ -158,7 +140,6 @@ async function bootstrap(): Promise<void> {
     renderMute();
   });
 
-  // ---- Silent mode (hearing-accessibility alternative: gain 0 + predefined visual pattern) ----
   const silentButton = requireElement<HTMLButtonElement>('#silent-toggle');
   const renderSilent = () => {
     const on = audio.isSilent;
@@ -173,21 +154,17 @@ async function bootstrap(): Promise<void> {
   };
   silentButton.addEventListener('click', onSilentClick);
 
-  // Unlock scrolling and let ScrollTrigger re-measure now that the body can scroll
   document.body.classList.remove('is-locked');
   window.scrollTo({ top: 0, behavior: 'auto' });
   refreshScroll();
 
-  // ---- Pads ----
   const padsHandle = setupPads(
     requireElement<HTMLElement>('#pads'),
     (pad) => {
-      // Uses the engine-wide waveform (and chord mode) chosen in the toolbar
       audio.playNote(pad.frequency, { attack: 0.01, decay: 0.3 });
       synthesis.burst(pad.index, padsHandle.pads.length);
     },
     {
-      // Letter keys only play while Synthesis is the active chapter (or a pad / step has focus)
       keysEnabled: () =>
         manager.active?.id === 'synthesis' ||
         (document.activeElement instanceof HTMLElement &&
@@ -196,7 +173,6 @@ async function bootstrap(): Promise<void> {
   );
   const padCount = padsHandle.pads.length;
 
-  // ---- FX sends (reverb / delay) ----
   const bindSlider = (id: string, apply: (amount: number) => void) => {
     const slider = requireElement<HTMLInputElement>(`#${id}`);
     const output = slider.parentElement?.querySelector<HTMLOutputElement>('.fx__value') ?? null;
@@ -213,7 +189,6 @@ async function bootstrap(): Promise<void> {
   const disposeReverb = bindSlider('fx-reverb', (amount) => audio.setReverb(amount));
   const disposeDelay = bindSlider('fx-delay', (amount) => audio.setDelay(amount));
 
-  // ---- 8-step sequencer ----
   const sequencer = new Sequencer({
     root: requireElement<HTMLElement>('#sequencer'),
     audio,
@@ -230,26 +205,20 @@ async function bootstrap(): Promise<void> {
     },
   });
 
-  // ---- Custom cursor (fine pointers only) ----
   const disposeCursor = setupCursor(audio, reducedMotion);
 
-  // ---- Audio-reactive chapter titles ----
   const disposeTypography = setupTypography(audio, reducedMotion);
 
-  // ---- XY pad (X = cutoff, Y = pitch bend) + global filter sweep (pointer X / touch drag) ----
   const xyRoot = requireElement<HTMLElement>('#xy');
   const xyToggle = requireElement<HTMLButtonElement>('#xy-toggle');
-  // Expanded by default only where it cannot collide with the chapter copy or the pads
   xyRoot.hidden = !window.matchMedia('(min-width: 1024px)').matches;
   const xyPad = setupXYPad(xyRoot, xyToggle, audio, reducedMotion);
   const disposeSweep = setupFilterSweep(audio, {
-    // The XY pad and range/number inputs own their own horizontal drags
     ignore: (target) => target instanceof Element && !!target.closest('.xy, input'),
     paused: () => xyPad.isDragging,
     onChange: (position) => xyPad.setFilterPosition(position),
   });
 
-  // ---- Waveform selector ----
   const waveformGroup = requireElement<HTMLElement>('#waveform');
   const waveformInputs = Array.from(waveformGroup.querySelectorAll<HTMLInputElement>('input[name="waveform"]'));
   const syncWaveform = () => {
@@ -259,13 +228,11 @@ async function bootstrap(): Promise<void> {
   syncWaveform();
   const onWaveformChange = () => {
     syncWaveform();
-    // Audition the new timbre so the change is audible immediately
     audio.playNote(440, { attack: 0.01, decay: 0.3 });
     synthesis.burst(4, padCount);
   };
   waveformGroup.addEventListener('change', onWaveformChange);
 
-  // ---- Chord mode ----
   const chordButton = requireElement<HTMLButtonElement>('#chord-toggle');
   const renderChord = () => {
     const on = audio.chordMode;
@@ -276,13 +243,11 @@ async function bootstrap(): Promise<void> {
   const onChordClick = () => {
     audio.setChordMode(!audio.chordMode);
     renderChord();
-    // Audition: C4 (as a triad when chord mode just turned on)
     audio.playNote(261.63, { attack: 0.01, decay: 0.35 });
     synthesis.burst(0, padCount);
   };
   chordButton.addEventListener('click', onChordClick);
 
-  // ---- Melody link: load shared state from the URL (no autoplay) ----
   const shareStatus = requireElement<HTMLElement>('#seq-status');
   const shared = readSharedState(window.location.search, sequencer.stepCount, padCount);
   if (shared) {
@@ -298,14 +263,12 @@ async function bootstrap(): Promise<void> {
       renderChord();
     }
     shareStatus.textContent = '공유된 시퀀스를 불러왔습니다. 재생 버튼을 눌러 들어보세요.';
-    // Jump to the Synthesis chapter so the loaded sequencer is on screen
     const synthesisTrigger = chapterTriggers[2];
     if (synthesisTrigger) {
       window.scrollTo({ top: Math.round(synthesisTrigger.start + window.innerHeight * 0.8), behavior: 'auto' });
     }
   }
 
-  // ---- Melody link: copy ----
   const shareButton = requireElement<HTMLButtonElement>('#seq-share');
   const shareLabel = shareButton.querySelector<HTMLElement>('.seq__share-label');
   const shareDefaultLabel = shareLabel?.textContent ?? '';
@@ -317,11 +280,9 @@ async function bootstrap(): Promise<void> {
       waveform: audio.currentWaveform,
       chord: audio.chordMode,
     });
-    // Keep the address bar in sync so the link can also be copied manually
     try {
       window.history.replaceState(null, '', url);
     } catch {
-      /* ignore (e.g. file://) */
     }
     const ok = await copyToClipboard(url);
     shareButton.classList.toggle('is-done', ok);
@@ -340,7 +301,6 @@ async function bootstrap(): Promise<void> {
   };
   shareButton.addEventListener('click', onShareClick);
 
-  // ---- Capture current frame ----
   const captureButton = requireElement<HTMLButtonElement>('#capture');
   const captureLabel = captureButton.querySelector<HTMLElement>('.capture__label');
   const captureStatus = requireElement<HTMLElement>('#capture-status');
@@ -380,15 +340,12 @@ async function bootstrap(): Promise<void> {
   };
   captureButton.addEventListener('click', onCapture);
 
-  // Read-only debug handle (used by scripts/smoke.mjs and handy in DevTools):
-  //   __echo.audio.level, __echo.manager.active?.id, __echo.audio.filterCutoff, ...
   Object.defineProperty(window, '__echo', {
     value: Object.freeze({ audio, manager, sequencer, xyPad, preview }),
     writable: false,
     configurable: false,
   });
 
-  // ---- Teardown ----
   const teardown = () => {
     waveformGroup.removeEventListener('change', onWaveformChange);
     chordButton.removeEventListener('click', onChordClick);

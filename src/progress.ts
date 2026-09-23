@@ -5,12 +5,6 @@ import { clamp } from './utils';
 
 gsap.registerPlugin(ScrollTrigger);
 
-/**
- * Thin vertical rail on the right edge.
- * The fill covers the scroll range from the start of the first pinned chapter to the end
- * of the last one; a tick marks each chapter boundary. Tick positions are derived from the
- * real ScrollTrigger start/end values, so they stay correct after resize/refresh.
- */
 export function setupProgress(
   root: HTMLElement,
   triggers: ChapterTriggers,
@@ -24,7 +18,6 @@ export function setupProgress(
   const first = triggers[0];
   const last = triggers[triggers.length - 1];
 
-  // With reduced motion the fill is written directly; otherwise it eases briefly.
   const setFill: (value: number) => void = reducedMotion
     ? (value) => {
         fill.style.transform = `scaleY(${value.toFixed(4)})`;
@@ -36,7 +29,6 @@ export function setupProgress(
   const layout = () => {
     const total = range();
     ticks.forEach((tick, i) => {
-      // Ticks 0..n-1 sit at each chapter start; an extra trailing tick sits at the very end.
       const position = i < triggers.length ? triggers[i].start - first.start : total;
       tick.style.top = `${((position / total) * 100).toFixed(3)}%`;
     });

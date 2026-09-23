@@ -1,7 +1,3 @@
-/**
- * Small math / environment helpers shared across the app.
- */
-
 export const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
@@ -20,10 +16,6 @@ export const mapRange = (
   outMax: number,
 ): number => outMin + ((value - inMin) / (inMax - inMin)) * (outMax - outMin);
 
-/**
- * Frame-rate independent exponential smoothing.
- * `lambda` is the approach rate: higher = snappier.
- */
 export const damp = (current: number, target: number, lambda: number, dt: number): number =>
   lerp(current, target, 1 - Math.exp(-lambda * dt));
 
@@ -32,7 +24,6 @@ export const isMobile = (): boolean => window.matchMedia('(max-width: 768px)').m
 export const prefersReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Particle / instance density multiplier: mobile renders at 50% of desktop. */
 export const densityScale = (): number => (isMobile() ? 0.5 : 1);
 
 export function debounce<A extends unknown[]>(

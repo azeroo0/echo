@@ -1,16 +1,5 @@
 import { isWaveform, type Waveform } from './audio';
 
-/**
- * Melody link sharing.
- * The sequencer state is encoded into the query string:
- *   ?p=0-23-45-&bpm=120&w=triangle&c=1
- *   p   one character per step: base-36 note index, "-" = rest
- *   bpm tempo
- *   w   waveform
- *   c   chord mode (1 = on)
- * Loading such a link restores the pattern without starting playback (autoplay policy).
- */
-
 export interface SharedState {
   pattern: Array<number | null>;
   bpm: number | null;
@@ -72,7 +61,6 @@ export function readSharedState(search: string, steps: number, noteCount: number
   return { pattern, bpm, waveform, chord };
 }
 
-/** Clipboard write with a textarea/execCommand fallback for browsers without the async API. */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -80,7 +68,6 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       return true;
     }
   } catch {
-    /* fall through to the legacy path */
   }
   try {
     const area = document.createElement('textarea');

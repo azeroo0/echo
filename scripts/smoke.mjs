@@ -1,7 +1,3 @@
-/**
- * Headless smoke test via Chrome DevTools Protocol (no extra dependencies).
- * Usage: node scripts/smoke.mjs [url]
- */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
@@ -124,7 +120,6 @@ try {
   }
   await send('Page.navigate', { url });
 
-  // Wait for loader to finish (loader hidden) — up to 30s (software GL is slow)
   let loaderDone = false;
   for (let i = 0; i < 120; i++) {
     loaderDone = await evaluate(`document.getElementById('loader').hidden === true`);
@@ -146,7 +141,6 @@ try {
   const canvasSize = await evaluate(`(() => { const c = document.getElementById('gl'); return c.width + 'x' + c.height; })()`);
   check('Canvas drawing buffer sized', /^\d+x\d+$/.test(canvasSize) && canvasSize !== '0x0', canvasSize);
 
-  // Hero preview fly-through loops behind the gate: body flag + caption naming the chapter on screen
   const previewBefore = await evaluate(`({
     previewing: document.body.classList.contains('is-previewing'),
     captionHidden: document.getElementById('gate-preview').hidden,
@@ -159,10 +153,8 @@ try {
     `shot=${previewBefore.shot}`,
   );
 
-  // Click Start (the gate fades out over 0.6s; software GL can stretch that, so poll up to 6s)
   await evaluate(`document.getElementById('gate-start').click(); true`);
   await sleep(1500);
-  // Informational: headless SwiftShader frame rate (GSAP lag smoothing stretches tweens below ~2fps)
   const fps = await evaluate(`new Promise((resolve) => {
     let frames = 0; const t0 = performance.now();
     const step = () => { frames++; if (performance.now() - t0 < 2000) requestAnimationFrame(step); else resolve(Number((frames / ((performance.now() - t0) / 1000)).toFixed(1))); };
@@ -183,7 +175,7 @@ try {
   const ambient = await evaluate(`window.__echo.audio.isStarted`);
   check('Ambient drone started', ambient === true);
 
-  await sleep(1500); // let the drone fade in (2.5s ramp) and the analyser fill
+  await sleep(1500);
   const analyser = await evaluate(`(() => {
     const a = window.__echo.audio;
     let maxDev = 0;
@@ -252,7 +244,6 @@ try {
   const docHeight = await evaluate(`document.documentElement.scrollHeight`);
   check('Document is scrollable (pinned sections add height)', docHeight > 900 * 6, `scrollHeight=${docHeight}`);
 
-  // Scroll through chapters and confirm the active 3D chapter follows the pinned section
   const expectations = [
     ['#signal', 'signal'],
     ['#frequency', 'frequency'],
@@ -265,7 +256,6 @@ try {
       window.scrollTo({ top: Math.round(top + window.innerHeight * 0.8), behavior: 'instant' });
       return true;
     })()`);
-    // ScrollTrigger updates on the rAF tick; software GL can run at a few fps, so poll up to 5s
     let active = null;
     for (let i = 0; i < 20; i++) {
       await sleep(250);
@@ -278,7 +268,6 @@ try {
     check(`Colour grade follows the "${id}" chapter`, gradeId === id, `gradeId=${gradeId}`);
   }
 
-  // Signal-noise transition: park the scroll inside the Signal -> Frequency gap near the peak (72%)
   await evaluate(`(() => {
     const spacer = document.querySelector('#frequency').parentElement;
     const start = spacer.getBoundingClientRect().top + window.scrollY;
@@ -298,7 +287,6 @@ try {
     `transition=${transition} --glitch=${glitchVar}`,
   );
 
-  // Convergence: park mid-way through the spacer (condensed core), then at the very bottom (dispersed)
   await evaluate(`(() => {
     const el = document.getElementById('convergence');
     const top = el.getBoundingClientRect().top + window.scrollY;
@@ -340,10 +328,7 @@ try {
     `progress=${convergenceEnd} outroOpacity=${outroOpacity}`,
   );
 
-  // Fire pads via keyboard (physical key codes) — park inside the Synthesis pin range (letter keys
-  // only play while Synthesis is the active chapter), independent of how much scroll room follows it
   await evaluate(`(() => {
-    // The section itself is pinned/absolutely positioned by ScrollTrigger; its pin-spacer stays in flow
     const spacer = document.querySelector('#synthesis').parentElement;
     const top = spacer.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: Math.round(top + window.innerHeight * 0.8), behavior: 'instant' });
@@ -362,11 +347,9 @@ try {
   const padActive = await evaluate(`document.querySelectorAll('.pad.is-active, .pad.is-pressed').length >= 0`);
   check('Pad key events dispatched without exceptions', padActive);
 
-  // Click a pad button
   await evaluate(`document.querySelector('.pad[data-key="G"]').click(); true`);
   await sleep(200);
 
-  // Waveform selector -> engine waveform
   const initialWave = await evaluate(`window.__echo.audio.currentWaveform`);
   await evaluate(`document.querySelector('input[name="waveform"][value="sawtooth"]').click(); true`);
   await sleep(150);
@@ -382,11 +365,9 @@ try {
   await evaluate(`document.querySelector('.pad[data-key="A"]').click(); true`);
   await sleep(200);
 
-  // Note trails spawn on pad hits
   const trails = await evaluate(`window.__echo.manager.getChapter('synthesis').activeTrailCount`);
   check('Pad hits spawn fading note trails', trails > 0, `activeTrails=${trails}`);
 
-  // FX sliders -> engine sends
   await evaluate(`(() => {
     const r = document.getElementById('fx-reverb'); r.value = '80'; r.dispatchEvent(new Event('input', { bubbles: true }));
     const d = document.getElementById('fx-delay'); d.value = '0'; d.dispatchEvent(new Event('input', { bubbles: true }));
@@ -404,7 +385,6 @@ try {
     `reverb=${fxAfter.reverb} delay=${fxAfter.delay}`,
   );
 
-  // Chord mode toggle -> engine flag
   await evaluate(`document.getElementById('chord-toggle').click(); true`);
   await sleep(120);
   const chordOn = await evaluate(`({
@@ -420,7 +400,6 @@ try {
     `on=${chordOn.engine}/${chordOn.pressed} off=${chordOff}`,
   );
 
-  // Sequencer: default pattern, play/stop, step highlight, BPM
   const patternBefore = await evaluate(`JSON.stringify(window.__echo.sequencer.pattern)`);
   await evaluate(`document.getElementById('seq-play').click(); true`);
   await sleep(700);
@@ -450,7 +429,6 @@ try {
   })`);
   check('Sequencer stops and clears highlight', !seqStopped.playing && seqStopped.highlighted === 0);
 
-  // Step editing: click cycles, Shift+click goes back, Delete rests
   await evaluate(`(() => {
     const step = document.querySelector('.step[data-step="1"]');
     step.click();
@@ -467,7 +445,6 @@ try {
   const stepCleared = await evaluate(`document.querySelector('.step[data-step="1"]').classList.contains('is-rest')`);
   check('Delete key clears a step back to a rest', stepCleared);
 
-  // Melody link: the button encodes the sequencer into the URL (clipboard may be unavailable headless)
   await evaluate(`document.getElementById('seq-share').click(); true`);
   await sleep(300);
   const share = await evaluate(`(() => {
@@ -487,7 +464,6 @@ try {
     `p=${share.p} bpm=${share.bpm} w=${share.w}`,
   );
 
-  // Custom cursor only for fine pointers
   const cursorInfo = await evaluate(`({
     fine: window.matchMedia('(pointer: fine)').matches && window.matchMedia('(hover: hover)').matches,
     exists: !!document.querySelector('.cursor'),
@@ -512,7 +488,6 @@ try {
     );
   }
 
-  // Filter sweep: pointer X -> master low-pass cutoff (left = closed, right = open)
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 60, y: 300 });
   await sleep(120);
   const cutoffLeft = await evaluate(`({ pos: window.__echo.audio.filterPosition, hz: Math.round(window.__echo.audio.filterCutoff) })`);
@@ -525,7 +500,6 @@ try {
     `left=${cutoffLeft.hz}Hz right=${cutoffRight.hz}Hz`,
   );
 
-  // XY pad: expanded by default on desktop; dragging bends pitch, releasing springs it back
   const xyRect = await evaluate(`(() => {
     const el = document.getElementById('xy');
     const r = document.getElementById('xy-surface').getBoundingClientRect();
@@ -545,7 +519,6 @@ try {
       dragging: window.__echo.xyPad.isDragging,
     })`);
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: px, y: py, button: 'left', clickCount: 1 });
-    // The spring-back is a 0.45s GSAP tween; poll so slow software frames don't fail the check
     let released = { bend: 9999, dragging: true };
     for (let i = 0; i < 60; i++) {
       await sleep(250);
@@ -559,11 +532,9 @@ try {
     );
   }
 
-  // Audio-reactive titles: the typography loop writes --title-pulse on <html>
   const titlePulse = await evaluate(`document.documentElement.style.getPropertyValue('--title-pulse')`);
   check('Typography loop writes --title-pulse', /em$/.test(titlePulse), `--title-pulse=${titlePulse}`);
 
-  // Silent mode: master gain -> 0 while the synthetic pattern keeps the analyser metrics alive
   await evaluate(`document.getElementById('silent-toggle').click(); true`);
   await sleep(1200);
   const silent = await evaluate(`({
@@ -583,7 +554,6 @@ try {
     `gain=${silent.gain} level=${silent.level} bass=${silent.bass}`,
   );
 
-  // Progress rail
   const rail = await evaluate(`(() => {
     const root = document.getElementById('progress');
     const track = root.querySelector('.progress__track');
@@ -602,7 +572,6 @@ try {
     rail.ticks.join(', '),
   );
 
-  // Capture: data URL from the WebGL canvas + button feedback (downloads are denied in this harness)
   await send('Browser.setDownloadBehavior', { behavior: 'deny' });
   const captureInfo = await evaluate(`(() => {
     const url = window.__echo.manager.capture();
@@ -625,7 +594,6 @@ try {
     captureFeedback.status,
   );
 
-  // Meta tags
   const meta = await evaluate(`({
     title: document.title,
     desc: document.querySelector('meta[name="description"]')?.content?.length ?? 0,
@@ -640,15 +608,12 @@ try {
     meta.title,
   );
 
-  // Mute toggle
   const pressedBefore = await evaluate(`document.getElementById('mute-toggle').getAttribute('aria-pressed')`);
   await evaluate(`document.getElementById('mute-toggle').click(); true`);
   const pressedAfter = await evaluate(`document.getElementById('mute-toggle').getAttribute('aria-pressed')`);
   check('Mute toggle flips aria-pressed', pressedBefore === 'false' && pressedAfter === 'true', `${pressedBefore} -> ${pressedAfter}`);
 
-  // Resize to mobile width to exercise debounced resize
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
-  // The resize is debounced 150ms, but a single software-GL frame can block the main thread longer than that; poll up to 4s
   let mobileCanvas = '';
   for (let i = 0; i < 16; i++) {
     await sleep(250);
@@ -659,7 +624,6 @@ try {
 
   await sleep(500);
 
-  // Shared melody link: a fresh load with ?p=... restores the sequencer without autoplay
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   const sharedUrl = `${url.replace(/[?#].*$/, '')}?p=2-3-4-5-&bpm=90&w=square&c=1`;
   await send('Page.navigate', { url: sharedUrl });
@@ -669,7 +633,7 @@ try {
     try {
       sharedLoaderDone = await evaluate(`document.getElementById('loader')?.hidden === true`);
     } catch {
-      continue; // execution context is being swapped by the navigation
+      continue;
     }
     if (sharedLoaderDone) break;
   }

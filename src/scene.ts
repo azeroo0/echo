@@ -8,23 +8,18 @@ import gsap from 'gsap';
 import type { AudioEngine } from './audio';
 import { damp, debounce, densityScale, isMobile, prefersReducedMotion } from './utils';
 
-/** Per-frame data handed to every chapter. */
 export interface FrameContext {
   dt: number;
   elapsed: number;
   audio: AudioEngine;
   reducedMotion: boolean;
-  /** Normalized pointer (-1..1) */
   pointer: THREE.Vector2;
 }
 
-/** A scroll chapter that owns a THREE.Group inside the shared scene. */
 export interface Chapter {
   readonly id: string;
   readonly group: THREE.Group;
-  /** Scroll progress within the pinned section, 0..1 */
   progress: number;
-  /** Crossfade opacity, animated by SceneManager */
   opacity: number;
   active: boolean;
   update(ctx: FrameContext, manager: SceneManager): void;
@@ -35,15 +30,9 @@ export interface Chapter {
 
 const CLEAR_COLOR = 0x050507;
 
-/** Bloom is switched off automatically if the average frame time stays above this for two windows. */
 const BLOOM_MAX_FRAME_TIME = 1 / 36;
-const BLOOM_PERF_WINDOW = 3; // seconds
+const BLOOM_PERF_WINDOW = 3;
 
-/**
- * Per-chapter colour grade, applied in linear space right before the OutputPass.
- * tint multiplies mids/highlights, lift colours the shadows, saturation scales chroma,
- * spectral blends a slowly drifting rainbow wash over the frame (Frequency only).
- */
 export interface GradePreset {
   tint: [number, number, number];
   lift: [number, number, number];
@@ -53,21 +42,12 @@ export interface GradePreset {
 
 export const GRADES: Record<string, GradePreset> = {
   hero: { tint: [1, 1, 1], lift: [0, 0, 0], saturation: 1, spectral: 0 },
-  // Signal: cold, desaturated blue with navy shadows
   signal: { tint: [0.7, 0.9, 1.25], lift: [0.0, 0.012, 0.034], saturation: 0.8, spectral: 0 },
-  // Frequency: the whole spectrum – boosted saturation plus a rainbow wash
   frequency: { tint: [1.04, 1.0, 1.05], lift: [0.008, 0.004, 0.012], saturation: 1.4, spectral: 1 },
-  // Synthesis: warm amber highlights, brown-orange shadows
   synthesis: { tint: [1.28, 1.0, 0.68], lift: [0.034, 0.014, 0.0], saturation: 1.06, spectral: 0 },
-  // Convergence -> outro: calm, slightly cool and desaturated
   convergence: { tint: [0.96, 1.0, 1.08], lift: [0.004, 0.008, 0.02], saturation: 0.8, spectral: 0 },
 };
 
-/**
- * Grade + "signal noise" transition shader.
- * uGlitch (0..1) drives static, scanlines and a sweeping scan bar; uShake (0/1) enables the
- * displacement / RGB-split parts, which are disabled under prefers-reduced-motion.
- */
 const GradeShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
@@ -103,7 +83,6 @@ const GradeShader = {
     float hash(float n) { return fract(sin(n) * 43758.5453123); }
     float hash2(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123); }
 
-    // hue 0..1 -> saturated rainbow
     vec3 spectrum(float h) {
       vec3 c = abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0;
       return clamp(c, 0.0, 1.0);
@@ -115,7 +94,6 @@ const GradeShader = {
       float t = uTime;
       float shake = g * uShake;
 
-      // ---- signal noise: horizontal band tearing + vertical jitter ----
       if (shake > 0.001) {
         float band = floor(uv.y * 18.0 + t * 7.0);
         float r = hash(band + floor(t * 11.0));
@@ -124,7 +102,6 @@ const GradeShader = {
         uv.y += (hash(floor(t * 19.0)) - 0.5) * 0.012 * shake;
       }
 
-      // ---- RGB split ----
       float split = 0.007 * shake;
       vec3 col;
       if (split > 0.0001) {
@@ -135,7 +112,6 @@ const GradeShader = {
         col = texture2D(tDiffuse, uv).rgb;
       }
 
-      // ---- chapter grade (linear space, before tone mapping) ----
       float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
       col = mix(vec3(lum), col, uSaturation);
       col = col * uTint + uLift * (1.0 - smoothstep(0.0, 0.35, lum));
@@ -145,7 +121,6 @@ const GradeShader = {
         col = mix(col, washed, uSpectral);
       }
 
-      // ---- static, fine scanlines, one bright scan bar sweeping down ----
       if (g > 0.001) {
         float grain = hash2(vUv * uResolution * 0.5 + fract(t) * 100.0);
         float scan = 0.5 + 0.5 * sin(vUv.y * uResolution.y * 1.2 + t * 30.0);
@@ -161,13 +136,6 @@ const GradeShader = {
   `,
 };
 
-/**
- * SceneManager
- * ------------
- * Owns the renderer, camera, lights, starfield and the render loop.
- * Chapters register themselves and the manager crossfades between them.
- * Post-processing: RenderPass -> [UnrealBloomPass] -> GradePass (colour grade + transition noise) -> OutputPass.
- */
 export class SceneManager {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
@@ -185,8 +153,6 @@ export class SceneManager {
   private readonly cameraLook = new THREE.Vector3(0, 0, 0);
   private cameraDamping = 4;
   private snapCameraNextFrame = true;
-  // While a scripted sequence (hero preview fly-through) owns the camera, chapter camera
-  // requests are ignored and driveCamera() writes the target directly.
   private cameraOverride = false;
 
   private readonly keyLight: THREE.PointLight;
@@ -198,8 +164,6 @@ export class SceneManager {
   private running = false;
   private elapsed = 0;
 
-  // Post-processing. The composer (grade + output) always exists; bloom is optional:
-  // never on mobile, auto-disabled on slow desktops.
   private readonly composer: EffectComposer;
   private readonly gradePass: ShaderPass;
   private readonly outputPass: OutputPass;
@@ -210,7 +174,6 @@ export class SceneManager {
   private perfFrames = 0;
   private perfSlowWindows = 0;
 
-  // Colour grade state (tweened between chapter presets)
   private readonly grade = {
     tint: new THREE.Color(1, 1, 1),
     lift: new THREE.Color(0, 0, 0),
@@ -219,7 +182,6 @@ export class SceneManager {
   };
   private currentGrade = 'hero';
 
-  // Transition ("signal noise") intensity, 0..1, damped toward the scroll-driven target
   private transitionTarget = 0;
   private transition = 0;
   private lastGlitchVar = -1;
@@ -259,7 +221,6 @@ export class SceneManager {
     this.camera.position.copy(this.cameraTargetPosition);
     this.camera.lookAt(this.cameraTargetLook);
 
-    // ---- Composer: RenderPass -> (bloom) -> GradePass -> OutputPass ----
     const mobile = isMobile();
     const size = this.renderer.getSize(new THREE.Vector2());
     const pixelRatio = this.renderer.getPixelRatio();
@@ -280,17 +241,14 @@ export class SceneManager {
     this.outputPass = new OutputPass();
     this.composer.addPass(this.outputPass);
 
-    // Bloom only where the GPU budget allows it
     if (!mobile) this.setBloom(true);
 
-    // Lights (shared by all chapters)
     const hemi = new THREE.HemisphereLight(0x8fa8ff, 0x140a1c, 0.7);
     const sun = new THREE.DirectionalLight(0xffffff, 1.2);
     sun.position.set(5, 8, 6);
     this.keyLight = new THREE.PointLight(0x5ee6ff, 18, 40, 1.6);
     this.scene.add(hemi, sun, this.keyLight);
 
-    // Starfield (follows the camera like a sky shell)
     const starCount = Math.round(1800 * densityScale());
     const positions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount; i++) {
@@ -316,7 +274,6 @@ export class SceneManager {
     this.starfield.frustumCulled = false;
     this.scene.add(this.starfield);
 
-    // Events
     this.onResize = debounce(() => this.resize(), 150);
     this.onVisibility = () => {
       if (document.hidden) this.pause();
@@ -337,12 +294,10 @@ export class SceneManager {
     return this.activeChapter;
   }
 
-  /** Id of the colour-grade preset currently targeted (follows the active chapter). */
   get gradeId(): string {
     return this.currentGrade;
   }
 
-  /** Current (damped) signal-noise transition intensity 0..1. */
   get transitionLevel(): number {
     return this.transition;
   }
@@ -360,7 +315,6 @@ export class SceneManager {
     return this.chapters.get(id) as T | undefined;
   }
 
-  /** Crossfade to a chapter. Previous chapter fades out and is deactivated afterwards. */
   activate(id: string, immediate = false): void {
     const next = this.chapters.get(id);
     if (!next || next === this.activeChapter) return;
@@ -401,7 +355,6 @@ export class SceneManager {
     }
   }
 
-  /** Tween the full-screen colour grade to a chapter preset (falls back to neutral). */
   setGrade(id: string, immediate = false): void {
     const preset = GRADES[id] ?? GRADES.hero;
     this.currentGrade = id in GRADES ? id : 'hero';
@@ -415,15 +368,10 @@ export class SceneManager {
     gsap.to(this.grade, { saturation: preset.saturation, spectral: preset.spectral, duration, ease });
   }
 
-  /**
-   * Scroll-driven "signal noise" intensity (0..1) between chapters.
-   * The value is damped per frame so quick scroll jumps still read as a short burst.
-   */
   setTransition(intensity: number): void {
     this.transitionTarget = Math.min(1, Math.max(0, intensity)) * (this.reducedMotion ? 0.4 : 1);
   }
 
-  /** Chapters call this every frame while active. Ignored while a camera override is set. */
   setCameraTarget(position: THREE.Vector3, look: THREE.Vector3, damping = 4): void {
     if (this.cameraOverride) return;
     this.cameraTargetPosition.copy(position);
@@ -431,25 +379,16 @@ export class SceneManager {
     this.cameraDamping = damping;
   }
 
-  /** True while a scripted sequence owns the camera (see driveCamera). */
   get hasCameraOverride(): boolean {
     return this.cameraOverride;
   }
 
-  /**
-   * Take the camera away from (or hand it back to) the active chapter.
-   * Handing it back snaps the camera to the chapter's target on the next frame.
-   */
   setCameraOverride(enabled: boolean): void {
     if (enabled === this.cameraOverride) return;
     this.cameraOverride = enabled;
     if (!enabled) this.snapCameraNextFrame = true;
   }
 
-  /**
-   * Write the camera target directly, bypassing the override guard (world space).
-   * `snap` skips the damping for one frame — used for hard cuts.
-   */
   driveCamera(position: THREE.Vector3, look: THREE.Vector3, damping = 6, snap = false): void {
     this.cameraTargetPosition.copy(position);
     this.cameraTargetLook.copy(look);
@@ -457,10 +396,6 @@ export class SceneManager {
     if (snap) this.snapCameraNextFrame = true;
   }
 
-  /**
-   * Show or hide a non-active chapter outside the crossfade system (fully opaque, no tween).
-   * The hero preview uses this to render a chapter's space while the hero stays the active chapter.
-   */
   setChapterVisible(id: string, visible: boolean): void {
     const chapter = this.chapters.get(id);
     if (!chapter || chapter === this.activeChapter) return;
@@ -482,7 +417,6 @@ export class SceneManager {
     gsap.to(this.fog, { density, duration, ease: 'power2.inOut' });
   }
 
-  /** Force-compile every chapter's shaders up front so the first frames don't hitch. */
   precompile(): void {
     const previous: boolean[] = [];
     const list = [...this.chapters.values()];
@@ -500,15 +434,10 @@ export class SceneManager {
     return this.bloomOn;
   }
 
-  /** True when bloom was turned off by the runtime performance guard. */
   get bloomDisabledByPerformance(): boolean {
     return this.bloomPerfDisabled;
   }
 
-  /**
-   * Toggle UnrealBloom post-processing. The bloom pass is inserted right after the RenderPass;
-   * the grade pass and OutputPass (tone mapping + sRGB) stay in place either way.
-   */
   setBloom(enabled: boolean): void {
     if (enabled === this.bloomOn) return;
 
@@ -529,7 +458,6 @@ export class SceneManager {
     this.composer.render();
   }
 
-  /** Drop bloom if the frame budget is consistently blown (checked in 3-second windows). */
   private guardBloomPerformance(dt: number): void {
     if (!this.bloomOn) return;
     this.perfAccum += dt;
@@ -551,11 +479,6 @@ export class SceneManager {
     }
   }
 
-  /**
-   * Render one fresh frame and return it as a PNG data URL.
-   * The WebGL drawing buffer is cleared after each frame (preserveDrawingBuffer is off),
-   * so we render synchronously right before reading it back.
-   */
   capture(): string {
     this.renderFrame();
     return this.renderer.domElement.toDataURL('image/png');
@@ -568,7 +491,6 @@ export class SceneManager {
     this.rafId = requestAnimationFrame(this.loop);
   }
 
-  /** Stop requesting frames (used when the tab is hidden). Audio keeps playing. */
   pause(): void {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
@@ -598,7 +520,6 @@ export class SceneManager {
     if (this.transition < 0.002) this.transition = 0;
     u.uGlitch.value = this.transition;
 
-    // Mirror the intensity to CSS so the chapter titles can split/shift with the frame
     const cssValue = Math.round(this.transition * 200) / 200;
     if (cssValue !== this.lastGlitchVar) {
       this.lastGlitchVar = cssValue;
@@ -626,7 +547,6 @@ export class SceneManager {
       if (chapter.group.visible) chapter.update(ctx, this);
     }
 
-    // Camera follow
     if (this.snapCameraNextFrame) {
       this.snapCamera();
       this.snapCameraNextFrame = false;
@@ -638,12 +558,10 @@ export class SceneManager {
       this.camera.lookAt(this.cameraLook);
     }
 
-    // Key light rides slightly above the camera
     this.keyLight.position.copy(this.camera.position);
     this.keyLight.position.y += 2;
     this.keyLight.intensity = 14 + this.audio.level * 24;
 
-    // Starfield: shell around camera, slow drift, subtle loudness pulse
     this.starfield.position.copy(this.camera.position);
     this.starfield.rotation.y += dt * (this.reducedMotion ? 0.002 : 0.01);
     this.starMaterial.size = 0.45 + this.audio.level * 0.35;

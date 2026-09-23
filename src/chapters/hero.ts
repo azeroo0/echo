@@ -3,11 +3,6 @@ import type { FrameContext, SceneManager } from '../scene';
 import { damp } from '../utils';
 import { BaseChapter } from './base';
 
-/**
- * Hero: slowly rotating wireframe icosahedron.
- * Before the user presses Start the analyser is silent, so it just rotates.
- * Once audio runs it breathes with loudness and shifts hue with treble.
- */
 export class HeroChapter extends BaseChapter {
   private readonly outer: THREE.LineSegments;
   private readonly core: THREE.Mesh;
@@ -69,7 +64,6 @@ export class HeroChapter extends BaseChapter {
     this.inner.rotation.y -= dt * 0.28 * speed;
     this.inner.rotation.z += dt * 0.11 * speed;
 
-    // Loudness -> breathing scale (real analyser data; 0 before Start)
     const targetScale = 1 + audio.level * 0.28 + audio.bass * 0.18;
     this.scale = damp(this.scale, targetScale, 8, dt);
     this.group.scale.setScalar(this.scale);

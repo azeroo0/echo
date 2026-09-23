@@ -1,17 +1,10 @@
-/*
- * Mona12 (github.com/MonadABXY/mona-font): 12px 그리드 픽셀 폰트, 400/700 두 굵기, 한글 완성형 11,172자 포함.
- * mona.css 의 @font-face 이름은 "Mona12" (본문/제목) 와 "Mona12 Text KR" (한글 텍스트 보조).
- * CDN 로드에 실패하면 --font 뒤쪽의 시스템 산세리프로 떨어진다.
- */
 @import url('https://cdn.jsdelivr.net/gh/MonadABXY/mona-font/web/mona.css');
 
 :root {
   --bg: #050507;
   --bg-2: #0b0c12;
   --fg: #f2f4f8;
-  /* 본문 단락용: 배경 대비 약 13.9:1 */
   --fg-soft: #cfd6e2;
-  /* 라벨/보조 텍스트: 배경 대비 약 8.8:1 (이전 #8f97aa 는 6.9:1, 밝은 3D 씬 위에서는 그보다 낮았다) */
   --muted: #a6aec0;
   --line: rgba(255, 255, 255, 0.14);
   --accent: #5ee6ff;
@@ -20,9 +13,7 @@
     'Segoe UI', Roboto, sans-serif;
   --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* 3D 씬 위에 바로 놓이는 텍스트용 그림자. 스크림(--scrim-block)과 함께 명도 대비를 확보한다 */
   --text-shadow: 0 1px 2px rgba(5, 5, 7, 0.75), 0 0 16px rgba(5, 5, 7, 0.6);
-  /* closest-side 타원: 박스 가장자리에서 완전히 투명해져 직사각형 경계가 드러나지 않는다 */
   --scrim-block: radial-gradient(
     closest-side,
     rgba(5, 5, 7, 0.85) 0%,
@@ -30,7 +21,6 @@
     rgba(5, 5, 7, 0.35) 75%,
     rgba(5, 5, 7, 0) 100%
   );
-  /* Mona12 는 글리프 폭이 넓은 픽셀 폰트: 음수 자간은 픽셀이 겹치므로 0 을 기준으로 하고 행간은 여유 있게 */
   --lh-body: 1.7;
   --lh-title: 1.08;
 }
@@ -78,7 +68,6 @@ button {
   color: inherit;
 }
 
-/* 한국어 본문 단락: 단어 중간에서 줄이 끊기지 않게 하고, Mona12 에 맞춘 행간을 공유한다 */
 .gate__desc,
 .gate__note,
 .hero__subtitle,
@@ -109,7 +98,6 @@ button {
   border: 0;
 }
 
-/* ---------- canvas ---------- */
 .gl {
   position: fixed;
   inset: 0;
@@ -119,7 +107,6 @@ button {
   z-index: 0;
 }
 
-/* ---------- loader ---------- */
 .loader {
   position: fixed;
   inset: 0;
@@ -177,8 +164,6 @@ button {
   display: none;
 }
 
-/* ---------- gate ---------- */
-/* Kept light so the hero preview fly-through stays readable behind it; the copy sits on its own glass card. */
 .gate {
   position: fixed;
   inset: 0;
@@ -207,7 +192,6 @@ button {
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Preview caption: chapter currently being flown through + a thin shot-progress line */
 .gate__preview {
   position: absolute;
   left: 50%;
@@ -257,7 +241,6 @@ button {
   transform: scaleX(0);
 }
 
-/* The hero copy would show through the lighter gate while the camera is elsewhere */
 body.is-previewing .hero__content,
 body.is-previewing .scroll-hint {
   visibility: hidden;
@@ -359,7 +342,6 @@ body.is-previewing .scroll-hint {
   border-color: var(--fg);
 }
 
-/* ---------- header ---------- */
 .header {
   position: fixed;
   top: 0;
@@ -374,7 +356,6 @@ body.is-previewing .scroll-hint {
   pointer-events: none;
 }
 
-/* 상단 스크림: 로고/내비 텍스트가 밝은 씬 위로 지나갈 때도 읽히도록 */
 .header::before {
   content: '';
   position: absolute;
@@ -425,7 +406,6 @@ body.is-previewing .scroll-hint {
   gap: 8px;
 }
 
-/* Shared pill button: XY toggle / Silent mode / Mute */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -459,7 +439,6 @@ body.is-previewing .scroll-hint {
   color: var(--accent);
 }
 
-/* Silent-mode note: visually hidden unless the mode is on; always readable by AT via aria-describedby */
 .silent__note {
   position: fixed;
   top: 66px;
@@ -511,7 +490,6 @@ body.is-silent .silent__note {
   text-transform: uppercase;
 }
 
-/* ---------- progress rail ---------- */
 .progress {
   position: fixed;
   right: clamp(10px, 2.2vw, 28px);
@@ -618,7 +596,6 @@ body.is-silent .silent__note {
   }
 }
 
-/* ---------- sections ---------- */
 main {
   position: relative;
   z-index: 1;
@@ -647,7 +624,6 @@ main {
   justify-items: center;
 }
 
-/* 히어로 카피 뒤 스크림. GSAP 가 .hero__content 를 페이드하므로 함께 사라지고, 프리뷰 중엔 visibility 로 같이 숨는다 */
 .hero__content::before {
   content: '';
   position: absolute;
@@ -719,7 +695,6 @@ main {
   }
 }
 
-/* ---------- chapters ---------- */
 .chapter {
   height: 100vh;
   height: 100svh;
@@ -737,8 +712,6 @@ main {
   isolation: isolate;
 }
 
-/* 챕터 카피 뒤 스크림: 튜브/막대/파티클이 텍스트 뒤로 지나가도 명도 대비가 유지되게.
-   .chapter__content 에 붙어 있어 GSAP 의 enter/leave 페이드를 그대로 따라간다. */
 .chapter__content::before {
   content: '';
   position: absolute;
@@ -748,10 +721,6 @@ main {
   z-index: -1;
 }
 
-/*
- * Chapter titles react to the analyser (src/typography.ts writes --title-pulse / --title-weight)
- * and split into cyan/magenta ghosts during the signal-noise transition (--glitch from SceneManager).
- */
 .chapter__title {
   margin: 0;
   font-size: clamp(44px, 8vw, 112px);
@@ -800,7 +769,6 @@ main {
   color: var(--fg);
 }
 
-/* Synthesis: text on top, pads on bottom */
 .chapter--synthesis .chapter__content {
   bottom: auto;
   top: clamp(88px, 16vh, 160px);
@@ -820,7 +788,6 @@ main {
   isolation: isolate;
 }
 
-/* 패드/시퀀서 라벨(10~11px) 뒤 하단 스크림. .pads-wrap 과 함께 페이드 인 된다 */
 .pads-wrap::before {
   content: '';
   position: absolute;
@@ -843,7 +810,6 @@ main {
   max-width: 360px;
 }
 
-/* Waveform segmented control */
 .wave {
   display: flex;
   align-items: center;
@@ -915,7 +881,6 @@ main {
   outline-offset: 2px;
 }
 
-/* Chord mode toggle */
 .chord {
   display: inline-flex;
   align-items: center;
@@ -968,7 +933,6 @@ main {
   box-shadow: 0 0 10px rgba(94, 230, 255, 0.7);
 }
 
-/* Capture button */
 .capture {
   display: inline-flex;
   align-items: center;
@@ -1016,7 +980,6 @@ main {
   cursor: default;
 }
 
-/* FX sends */
 .fx {
   display: flex;
   flex-wrap: wrap;
@@ -1114,7 +1077,6 @@ main {
   outline-offset: 3px;
 }
 
-/* Sequencer */
 .seq {
   display: grid;
   gap: 8px;
@@ -1131,7 +1093,6 @@ main {
   gap: 10px 12px;
 }
 
-/* Melody link button */
 .seq__share {
   display: inline-flex;
   align-items: center;
@@ -1346,7 +1307,6 @@ main {
   text-shadow: var(--text-shadow);
 }
 
-/* ---------- XY pad (src/xy.ts): X = filter cutoff, Y = pitch bend ---------- */
 .xy {
   position: fixed;
   right: 84px;
@@ -1437,8 +1397,6 @@ main {
   height: 1px;
 }
 
-/* The dot's container is the surface; translate() is in % of its own size, so the dot is
-   positioned by a wrapper trick: full-size box translated by the state, dot drawn top-left. */
 .xy__dot {
   position: absolute;
   inset: 0;
@@ -1478,7 +1436,6 @@ main {
 }
 
 @media (max-width: 640px) {
-  /* Phones: the pad opens as a centred overlay so it never sits on top of the Synthesis pads */
   .xy {
     right: 50%;
     bottom: 50%;
@@ -1489,7 +1446,6 @@ main {
   }
 }
 
-/* Custom cursor (fine pointers only; created by src/cursor.ts) */
 body.has-custom-cursor,
 body.has-custom-cursor * {
   cursor: none !important;
@@ -1661,15 +1617,11 @@ body.has-custom-cursor * {
   }
 }
 
-/* ---------- convergence (Synthesis -> Outro) ---------- */
-/* Empty scroll room for the scrubbed convergence: only the 3D scene is on screen here. */
 .convergence {
   height: 170vh;
   height: 170svh;
 }
 
-/* ---------- outro ---------- */
-/* At least one viewport tall so the convergence scrub can reach 100% (outro top at viewport top). */
 .outro {
   min-height: 100vh;
   min-height: 100svh;
@@ -1757,7 +1709,6 @@ body.has-custom-cursor * {
   font-family: var(--mono);
 }
 
-/* ---------- responsive ---------- */
 @media (max-width: 640px) {
   .header__nav {
     display: none;
@@ -1805,7 +1756,6 @@ body.has-custom-cursor * {
     display: none;
   }
 
-  /* Keep the Synthesis stack inside a 390x660 viewport */
   .pads-wrap {
     gap: 10px;
     bottom: 16px;
@@ -1834,13 +1784,11 @@ body.has-custom-cursor * {
   }
 }
 
-/* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
 
-  /* Shorter convergence run: the scrub still works, there is just less of it */
   .convergence {
     height: 120vh;
     height: 120svh;
@@ -1873,7 +1821,6 @@ body.has-custom-cursor * {
     transition: none;
   }
 
-  /* Titles stay still: no audio pulse, no glitch shift (the shader also drops displacement) */
   .chapter__title {
     letter-spacing: 0;
     font-variation-settings: normal;

@@ -9,10 +9,9 @@ const MIN_HZ = 60;
 const MAX_HZ = 6000;
 const PARTICLE_MAX_RADIUS = 14;
 
-// Note trails: each played note leaves a short spiral streak that fades out
 const TRAIL_POINTS = 40;
-const TRAIL_DURATION = 2.2; // seconds until fully gone
-const TRAIL_TRAVEL = 1.0; // seconds the head keeps moving
+const TRAIL_DURATION = 2.2;
+const TRAIL_TRAVEL = 1.0;
 
 interface TrailState {
   active: boolean;
@@ -37,7 +36,6 @@ const trailVertexShader = /* glsl */ `
     vAlpha = aAlpha;
     vColor = aColor;
     if (aAlpha <= 0.001) {
-      // Park inactive points off-screen
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       gl_PointSize = 0.0;
       return;
@@ -57,7 +55,6 @@ const trailFragmentShader = /* glsl */ `
   void main() {
     float d = length(gl_PointCoord - 0.5);
     float soft = smoothstep(0.5, 0.1, d);
-    // Colour pushed above 1.0 so the bloom pass picks the streak up
     gl_FragColor = vec4(vColor * 1.6, soft * vAlpha * uOpacity);
   }
 `;
@@ -76,8 +73,6 @@ const sphereVertexShader = /* glsl */ `
   void main() {
     vec3 n = normalize(normal);
 
-    // Map the surface direction onto the (log-scaled) spectrum texture so that
-    // different notes push different regions of the sphere.
     float azimuth = atan(n.z, n.x) / 6.28318530718 + 0.5;
     float elevation = n.y * 0.5 + 0.5;
     float u = fract(azimuth + elevation * 0.35);
@@ -156,12 +151,6 @@ const particleFragmentShader = /* glsl */ `
   }
 `;
 
-/**
- * Chapter 3 — Synthesis
- * Central sphere displaced by the live spectrum (drone + whatever the user plays),
- * surrounded by particles whose outward speed follows loudness.
- * `burst()` is called from the pads to add a directional impulse and recolour.
- */
 export class SynthesisChapter extends BaseChapter {
   private readonly sphereMaterial: THREE.ShaderMaterial;
   private readonly wireMaterial: THREE.ShaderMaterial;
@@ -203,7 +192,6 @@ export class SynthesisChapter extends BaseChapter {
 
     const mobile = isMobile();
 
-    // ---- Spectrum texture (log-resampled FFT) ----
     this.spectrumData = new Uint8Array(SPECTRUM_TEXELS);
     this.spectrumTexture = this.track(
       new THREE.DataTexture(
@@ -232,7 +220,6 @@ export class SynthesisChapter extends BaseChapter {
       this.texelBinHigh[i] = b1;
     }
 
-    // ---- Sphere ----
     const sphereGeometry = this.track(new THREE.IcosahedronGeometry(1.7, mobile ? 4 : 5));
     const sharedUniforms = () => ({
       uSpectrum: { value: this.spectrumTexture },
@@ -272,7 +259,6 @@ export class SynthesisChapter extends BaseChapter {
     this.wireMaterial.uniforms.uColorB.value = new THREE.Color(0xffffff);
     this.wire = new THREE.Mesh(sphereGeometry, this.wireMaterial);
 
-    // ---- Particles ----
     this.particleCount = Math.round(1400 * densityScale());
     this.particlePositions = new Float32Array(this.particleCount * 3);
     this.particleVelocities = new Float32Array(this.particleCount * 3);
@@ -311,7 +297,6 @@ export class SynthesisChapter extends BaseChapter {
     const particles = new THREE.Points(this.particleGeometry, this.particleMaterial);
     particles.frustumCulled = false;
 
-    // ---- Note trails ----
     this.maxTrails = mobile ? 6 : 12;
     const trailVertexCount = this.maxTrails * TRAIL_POINTS;
     this.trailStates = Array.from({ length: this.maxTrails }, () => ({
@@ -364,12 +349,10 @@ export class SynthesisChapter extends BaseChapter {
     });
   }
 
-  /** Number of trails currently visible (exposed for diagnostics). */
   get activeTrailCount(): number {
     return this.trailStates.filter((state) => state.active).length;
   }
 
-  /** Position of a trail head for travel parameter `t` (0..1): a rising spiral leaving the sphere. */
   private trailHeadPosition(state: TrailState, t: number, out: THREE.Vector3): THREE.Vector3 {
     const radius = 1.9 + t * 4.8;
     const angle = state.angle0 + t * state.spin;
@@ -377,10 +360,6 @@ export class SynthesisChapter extends BaseChapter {
     return out.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
   }
 
-  /**
-   * Start a trail for the note at `index`. Lower notes spiral low and wide,
-   * higher notes climb; alternate notes spin in opposite directions.
-   */
   private spawnTrail(index: number, total: number): void {
     const t = total > 1 ? index / (total - 1) : 0;
     const slot = this.nextTrail;
@@ -424,11 +403,9 @@ export class SynthesisChapter extends BaseChapter {
         continue;
       }
 
-      // Head speed follows loudness a little, so louder passages throw longer streaks
       state.travel = Math.min(TRAIL_TRAVEL, state.travel + dt * (0.85 + level * 0.5));
       this.trailHeadPosition(state, state.travel / TRAIL_TRAVEL, this.trailHead);
 
-      // Shift history back by one and write the new head
       for (let i = TRAIL_POINTS - 1; i > 0; i--) {
         const dst = (base + i) * 3;
         const src = (base + i - 1) * 3;
@@ -448,12 +425,10 @@ export class SynthesisChapter extends BaseChapter {
       }
     }
 
-    // 480 vertices at most — always uploading is cheaper than tracking dirtiness
     (this.trailGeometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     (this.trailGeometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true;
   }
 
-  /** Reset particle `i` near the sphere surface with an outward velocity. */
   private respawn(i: number, speedScale: number, initialLife: number, direction?: THREE.Vector3): void {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
@@ -462,7 +437,6 @@ export class SynthesisChapter extends BaseChapter {
     let dz = Math.cos(phi);
 
     if (direction) {
-      // Bias the burst towards a direction so different pads feel different
       dx = dx * 0.55 + direction.x;
       dy = dy * 0.55 + direction.y;
       dz = dz * 0.55 + direction.z;
@@ -486,10 +460,6 @@ export class SynthesisChapter extends BaseChapter {
     this.particleLife[i] = initialLife;
   }
 
-  /**
-   * Called when a pad fires. `index` (0..8) selects a hue and a burst direction.
-   * The audible note itself is what deforms the sphere — this only adds the particle kick.
-   */
   burst(index: number, total = 9): void {
     const t = total > 1 ? index / (total - 1) : 0;
     this.targetColor.setHSL(0.5 + t * 0.4, 0.9, 0.62);
@@ -505,7 +475,6 @@ export class SynthesisChapter extends BaseChapter {
   update(ctx: FrameContext, manager: SceneManager): void {
     const { dt, elapsed, audio, reducedMotion } = ctx;
 
-    // ---- Spectrum -> texture ----
     const spectrum = this.audio.frequency;
     for (let i = 0; i < SPECTRUM_TEXELS; i++) {
       const lo = this.texelBinLow[i];
@@ -530,7 +499,6 @@ export class SynthesisChapter extends BaseChapter {
     this.sphere.rotation.x += dt * spin * 0.35;
     this.wire.rotation.copy(this.sphere.rotation);
 
-    // ---- Particles ----
     const speed = 0.5 + audio.level * 4.5 + audio.impulse * 6;
     const lifeRate = 0.22 + audio.level * 0.6;
     const positions = this.particlePositions;
@@ -556,7 +524,6 @@ export class SynthesisChapter extends BaseChapter {
       }
     }
 
-    // Spend any leftover burst budget on the oldest particles right away
     if (this.pendingBurst > 0) {
       let scanned = 0;
       for (let i = 0; i < this.particleCount && this.pendingBurst > 0 && scanned < this.particleCount; i++, scanned++) {
@@ -592,7 +559,6 @@ export class SynthesisChapter extends BaseChapter {
       return;
     }
 
-    // Slow orbit; scrolling pulls the camera closer and around
     this.orbit += dt * 0.12;
     const angle = this.orbit + p * 1.6;
     const dist = lerp(10, 6.8, p) - audio.level * 0.6;

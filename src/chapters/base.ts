@@ -3,11 +3,6 @@ import type { Chapter, FrameContext, SceneManager } from '../scene';
 
 type Disposable = { dispose(): void };
 
-/**
- * Shared plumbing for chapters: fade handling, disposable tracking, camera helpers.
- * Each chapter lives at its own world-space origin (`group.position`) so that
- * geometry never overlaps during crossfades.
- */
 export abstract class BaseChapter implements Chapter {
   readonly group = new THREE.Group();
   progress = 0;
@@ -18,7 +13,6 @@ export abstract class BaseChapter implements Chapter {
   protected readonly disposables: Disposable[] = [];
   private readonly fadeHandlers: Array<(opacity: number) => void> = [];
 
-  // Scratch vectors reused every frame
   protected readonly camPos = new THREE.Vector3();
   protected readonly camLook = new THREE.Vector3();
 
@@ -50,7 +44,6 @@ export abstract class BaseChapter implements Chapter {
     this.active = active;
   }
 
-  /** Hand a chapter-local camera position / look-at to the manager (converted to world space). */
   protected applyCamera(manager: SceneManager, damping = 4): void {
     if (manager.active !== this) return;
     this.camPos.add(this.group.position);
