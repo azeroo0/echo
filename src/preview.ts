@@ -50,7 +50,7 @@ export class HeroPreview {
         id: 'signal',
         index: '01',
         label: 'Signal',
-        duration: 1.8,
+        duration: 2.5,
         camera: (t, pos, look) => {
           const x = lerp(-13, 7, t);
           pos.set(x, lerp(4.4, 2.6, t), lerp(11, 8.6, t));
@@ -61,7 +61,7 @@ export class HeroPreview {
         id: 'frequency',
         index: '02',
         label: 'Frequency',
-        duration: 1.7,
+        duration: 2.4,
         camera: (t, pos, look) => {
           pos.set(lerp(-halfWidth * 0.8, halfWidth * 0.55, t), lerp(2.2, 7.5, t), lerp(frontZ + 9, frontZ - 4, t));
           look.set(lerp(0, -halfWidth * 0.2, t), lerp(2, 1.4, t), lerp(frontZ - 6, -4, t));
@@ -71,7 +71,7 @@ export class HeroPreview {
         id: 'synthesis',
         index: '03',
         label: 'Synthesis',
-        duration: 1.7,
+        duration: 2.4,
         camera: (t, pos, look) => {
           const angle = lerp(-0.9, 0.5, t);
           const dist = lerp(9.6, 7.2, t);

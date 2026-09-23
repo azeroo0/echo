@@ -36,7 +36,9 @@ export function setupScroll(
   const reducedMotion = prefersReducedMotion();
   ScrollTrigger.config({ ignoreMobileResize: true });
 
-  const pinDistance = () => Math.round(window.innerHeight * (reducedMotion ? 1.6 : 2.5));
+  // 챕터가 핀 고정된 채 카메라 연출이 진행되는 스크롤 길이. 값이 클수록 같은 휠 한 칸에
+  // 카메라가 덜 움직여 연출이 차분해진다. 2.5 → 3.6: 900px 뷰포트 기준 2250px → 3240px.
+  const pinDistance = () => Math.round(window.innerHeight * (reducedMotion ? 2.0 : 3.6));
 
   ScrollTrigger.create({
     trigger: heroElement,
@@ -104,14 +106,16 @@ export function setupScroll(
 
     const rise = reducedMotion ? 0 : 40;
 
-    if (index) timeline.from(index, { opacity: 0, y: rise * 0.5, duration: 0.08 }, 0.02);
-    if (title) timeline.from(title, { opacity: 0, y: rise, duration: 0.12 }, 0.03);
-    if (desc) timeline.from(desc, { opacity: 0, y: rise * 0.75, duration: 0.12 }, 0.07);
-    if (meta) timeline.from(meta, { opacity: 0, y: rise * 0.5, duration: 0.1 }, 0.11);
-    if (pads) timeline.from(pads, { opacity: 0, y: rise * 0.6, duration: 0.14 }, 0.1);
+    // 타임라인 시간은 pinDistance에 대한 비율이라 핀 길이를 늘리면 등장/퇴장도 같이 늘어난다.
+    // 스크롤 픽셀 기준 길이를 이전(2.5배)과 비슷하게 유지하도록 약 0.7배로 줄였다.
+    if (index) timeline.from(index, { opacity: 0, y: rise * 0.5, duration: 0.06 }, 0.015);
+    if (title) timeline.from(title, { opacity: 0, y: rise, duration: 0.085 }, 0.02);
+    if (desc) timeline.from(desc, { opacity: 0, y: rise * 0.75, duration: 0.085 }, 0.05);
+    if (meta) timeline.from(meta, { opacity: 0, y: rise * 0.5, duration: 0.07 }, 0.08);
+    if (pads) timeline.from(pads, { opacity: 0, y: rise * 0.6, duration: 0.1 }, 0.07);
 
     if (!keepContent && content) {
-      timeline.to(content, { opacity: 0, y: -rise * 0.75, duration: 0.1 }, 0.88);
+      timeline.to(content, { opacity: 0, y: -rise * 0.75, duration: 0.075 }, 0.905);
     }
 
     timeline.set({}, {}, 1);

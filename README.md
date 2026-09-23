@@ -174,5 +174,4 @@ Analyser 대신 미리 정의된 패턴으로 `timeDomain` / `frequency` 버퍼�
 
 - `index.html` `<head>`의 `og:url`, `og:image`, `twitter:image` placeholder(`https://example.com/...`). 1200x630 PNG를
   `public/og-image.png`로 추가하고 절대 URL로 바꾸세요.
-- `index.html` 아웃트로의 `Your Name`, `github.com/your-handle`, `you@example.com`
 - 필요하면 `src/audio.ts`의 드론 주파수/볼륨, `src/pads.ts`가 읽는 패드의 `data-freq`

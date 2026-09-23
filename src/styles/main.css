@@ -1,4 +1,34 @@
-@import url('https://cdn.jsdelivr.net/gh/MonadABXY/mona-font/web/mona.css');
+@font-face {
+  font-family: 'Mona12';
+  src: url('/fonts/Mona12.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mona12';
+  src: url('/fonts/Mona12-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mona12 Text KR';
+  src: url('/fonts/Mona12TextKR.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mona12 Text KR';
+  src: url('/fonts/Mona12TextKR-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --bg: #050507;
@@ -11,7 +41,8 @@
   --accent-2: #ff5ea8;
   --font: 'Mona12', 'Mona12 Text KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system,
     'Segoe UI', Roboto, sans-serif;
-  --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --mono: 'Mona12', 'Mona12 Text KR', 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo,
+    monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --text-shadow: 0 1px 2px rgba(5, 5, 7, 0.75), 0 0 16px rgba(5, 5, 7, 0.6);
   --scrim-block: radial-gradient(
@@ -769,23 +800,65 @@ main {
   color: var(--fg);
 }
 
-.chapter--synthesis .chapter__content {
+/*
+ * Synthesis: 설명(.chapter__content)과 컨트롤(.pads-wrap)을 absolute로 위/아래에서
+ * 각각 띄우면 뷰포트가 낮을 때 중간에서 충돌한다. 대신 섹션을 flex 컬럼으로 두고
+ * 두 블록을 문서 흐름에 넣어 구조적으로 겹칠 수 없게 한다. 설명 블록은 남는 공간만
+ * 차지하며(flex-shrink), 공간이 부족하면 아래 높이 미디어쿼리가 제목 크기와 패딩을 줄이고,
+ * 설명 줄 수는 src/fit.ts가 남는 높이를 실측해 -webkit-line-clamp로 맞춘다(--synth-desc-lines는
+ * JS 실행 전 기본값). 그래도 넘치면 설명만 잘리고 컨트롤은 지킨다.
+ */
+.chapter--synthesis {
+  --synth-desc-lines: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(88px, 16vh, 160px) 0 clamp(24px, 8vh, 96px);
+}
+
+.chapter.chapter--synthesis .chapter__content {
+  position: relative;
+  top: auto;
+  right: auto;
   bottom: auto;
-  top: clamp(88px, 16vh, 160px);
+  left: auto;
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100% - clamp(20px, 6vw, 96px) - 20px);
+  margin: 0 20px auto clamp(20px, 6vw, 96px);
+}
+
+.chapter.chapter--synthesis .chapter__desc {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--synth-desc-lines);
+  line-clamp: var(--synth-desc-lines);
 }
 
 .pads-wrap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: clamp(24px, 8vh, 96px);
+  position: relative;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
+  margin-top: 24px;
   padding: 0 20px;
   pointer-events: auto;
   isolation: isolate;
+}
+
+/* 640px 미디어쿼리의 `.pads-wrap { bottom: 16px }`가 relative 오프셋으로 작동하지 않도록 무효화한다. */
+.chapter--synthesis .pads-wrap {
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
 }
 
 .pads-wrap::before {
@@ -1781,6 +1854,124 @@ body.has-custom-cursor * {
 
   .chapter--synthesis .chapter__desc {
     font-size: 13px;
+  }
+}
+
+/* Synthesis: 폭은 넓지만 세로가 낮은 뷰포트. 제목 크기와 설명 줄 수를 단계적으로 줄인다. */
+@media (max-height: 780px) {
+  .chapter--synthesis {
+    padding-top: clamp(80px, 13vh, 130px);
+  }
+
+  .chapter--synthesis .chapter__title {
+    font-size: clamp(40px, 7vw, 96px);
+  }
+}
+
+@media (max-height: 700px) {
+  .chapter--synthesis {
+    padding-top: clamp(76px, 11vh, 110px);
+  }
+
+  .chapter--synthesis .chapter__title {
+    font-size: clamp(36px, 6vw, 80px);
+  }
+}
+
+@media (max-height: 620px) {
+  .chapter--synthesis {
+    padding-top: 72px;
+  }
+
+  .chapter--synthesis .chapter__title {
+    font-size: clamp(32px, 5vw, 64px);
+  }
+
+  .chapter.chapter--synthesis .chapter__content {
+    gap: 8px;
+  }
+
+  .pads-wrap {
+    gap: 10px;
+    margin-top: 16px;
+  }
+}
+
+/*
+ * 태블릿 세로(641~767px): 기본값(360px 폭, 3열 3행 패드)이면 컨트롤 묶음이 550px에 달해
+ * 설명이 들어갈 자리가 없다. 폭을 600px까지 쓰고 패드를 한 줄(9열)로 펼쳐 높이를 줄인다.
+ */
+@media (min-width: 641px) and (max-width: 767px) {
+  .pads,
+  .pads-toolbar,
+  .fx,
+  .seq {
+    max-width: 600px;
+  }
+
+  .pads {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+  }
+
+  .pad {
+    min-height: 72px;
+    padding: 10px;
+  }
+
+  .seq__hint {
+    display: none;
+  }
+}
+
+/* 가로모드 폰 등 매우 낮은 뷰포트: 설명과 인덱스를 숨기고 제목·패드를 최소로 줄인다. */
+@media (max-height: 520px) {
+  .chapter--synthesis {
+    padding-top: 64px;
+    padding-bottom: 16px;
+  }
+
+  .chapter--synthesis .chapter__index,
+  .chapter.chapter--synthesis .chapter__desc,
+  .chapter--synthesis .seq__hint {
+    display: none;
+  }
+
+  .chapter--synthesis .chapter__title {
+    font-size: 40px;
+  }
+
+  .chapter--synthesis .pads-wrap {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .chapter--synthesis .pad {
+    min-height: 56px;
+  }
+}
+
+/*
+ * Synthesis 모바일. 위 640px 미디어쿼리의 `.chapter--synthesis .chapter__content { top: 84px }`는
+ * flex 배치에서는 효과가 없으므로 섹션 패딩으로 같은 간격을 준다. 컨트롤 묶음이 높으므로
+ * 간격도 좁힌다.
+ */
+@media (max-width: 640px) {
+  .chapter--synthesis {
+    padding-top: 84px;
+    padding-bottom: 16px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 760px) {
+  .chapter--synthesis {
+  }
+
+  .chapter.chapter--synthesis .chapter__content {
+    gap: 8px;
+  }
+
+  .pads-wrap {
+    margin-top: 16px;
   }
 }
 

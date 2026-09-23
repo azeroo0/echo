@@ -18,10 +18,17 @@ import { setupFilterSweep } from './sweep';
 import { setupXYPad } from './xy';
 import { buildShareUrl, copyToClipboard, readSharedState } from './share';
 import { setupTypography } from './typography';
+import { setupSynthesisFit } from './fit';
 import { nextFrame, prefersReducedMotion, requireElement } from './utils';
 
 async function bootstrap(): Promise<void> {
   const reducedMotion = prefersReducedMotion();
+
+  document.fonts.ready.then(() => {
+    console.info(
+      `[fonts] Mona12: ${document.fonts.check('12px "Mona12"')} / Mona12 Text KR: ${document.fonts.check('12px "Mona12 Text KR"')}`,
+    );
+  });
 
   const loader = new Loader(
     requireElement<HTMLElement>('#loader'),
@@ -91,6 +98,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const disposeProgress = setupProgress(requireElement<HTMLElement>('#progress'), chapterTriggers, reducedMotion);
+  const disposeSynthesisFit = setupSynthesisFit(requireElement<HTMLElement>('#synthesis'));
 
   manager.activate('hero', true);
   manager.start();
@@ -362,6 +370,7 @@ async function bootstrap(): Promise<void> {
     disposeReverb();
     disposeDelay();
     disposeProgress();
+    disposeSynthesisFit();
     padsHandle.dispose();
     preview.dispose();
     killScroll();
